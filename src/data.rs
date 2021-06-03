@@ -7,6 +7,7 @@ pub type Tuple = Arc<[Value]>;
 
 macro_rules! impl_from {
     ($to:ty, $from:ty, $via:expr) => {
+
         impl From<$from> for $to {
             fn from(value: $from) -> $to { ($via)(value) }
         }
@@ -21,24 +22,28 @@ macro_rules! fns_variant {
         $to_variant:ident,
         $into_variant:ident
     ) => {
+
         pub fn $is_variant(&self) -> bool {
             match *self {
                 Self::$variant(_) => true,
                 _ => false,
             }
         }
+
         pub fn $as_variant(&self) -> Option<&$output> {
             match *self {
                 Self::$variant(ref value) => Some(value),
                 _ => None,
             }
         }
+
         pub fn $to_variant(&self) -> Option<$output> {
             match *self {
                 Self::$variant(ref value) => Some(value.clone()),
                 _ => None,
             }
         }
+
         pub fn $into_variant(self) -> Option<$output> {
             match self {
                 Self::$variant(value) => Some(value),
@@ -116,6 +121,7 @@ pub trait MatchValue {
 
 macro_rules! impl_match_value {
     ($matched:ty, $via:expr) => {
+
         impl MatchValue for $matched {
             fn match_value(&self, value: &Value) -> bool {
 
