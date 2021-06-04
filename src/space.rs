@@ -12,7 +12,7 @@ type ObjectData = FnvHashMap<Id, Vec<(Symbol, Value)>>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Id {
     space_id: NonZeroU64,
-    object_id: u64,
+    object_id: NonZeroU64,
 }
 
 impl std::fmt::Display for Id {
@@ -38,8 +38,8 @@ impl Sequence {
     }
 
     fn next_id(&self) -> Id {
-        let object_id = self.next_id.fetch_add(1, Ordering::SeqCst);
-        assert!(object_id != 0, "available object id");
+        let object_id = NonZeroU64::new(self.next_id.fetch_add(1, Ordering::SeqCst))
+            .expect("available object id");
         Id {
             space_id: self.space_id,
             object_id,
