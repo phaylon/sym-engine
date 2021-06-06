@@ -7,3 +7,6 @@ edition = "2018"
 [dependencies]
 fnv = "1.0.7"
 string_cache = "0.8.1"
+nom = "6.1.2"
+nom-greedyerror = "0.3.1"
+nom_locate = "3.0.1"
