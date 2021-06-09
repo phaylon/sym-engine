@@ -1,6 +1,6 @@
 
 use std::sync::{Arc};
-use crate::{ast, Value};
+use crate::{ast, Value, Symbol};
 use crate::data::{ArithBinOp};
 
 mod cfg;
@@ -147,6 +147,43 @@ pub enum OpenTupleItem {
     Ignore,
     Binding(usize),
     Compare(Value),
+}
+
+#[derive(Debug, Clone)]
+pub enum OpApply {
+    CreateObject {
+        binding: usize,
+    },
+    CreateTuple {
+        binding: usize,
+        items: Vec<ApplyTupleItem>,
+    },
+    AddBindingAttribute {
+        binding: usize,
+        attribute: Symbol,
+        value_binding: usize,
+    },
+    RemoveBindingAttribute {
+        binding: usize,
+        attribute: Symbol,
+        value_binding: usize,
+    },
+    AddValueAttribute {
+        binding: usize,
+        attribute: Symbol,
+        value: Value,
+    },
+    RemoveValueAttribute {
+        binding: usize,
+        attribute: Symbol,
+        value: Value,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub enum ApplyTupleItem {
+    Value(Value),
+    Binding(usize),
 }
 
 #[test]

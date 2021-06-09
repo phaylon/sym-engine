@@ -7,7 +7,15 @@ use std::collections::{HashMap};
 use crate::{ast, Symbol, Value};
 use crate::data::{CompareOp};
 use crate::parser::{Span};
-use super::{CompileError, EnumOption, OpenTupleItem, Calculation, CompareValue};
+use super::{
+    CompileError,
+    EnumOption,
+    OpenTupleItem,
+    Calculation,
+    CompareValue,
+    OpApply,
+    ApplyTupleItem,
+};
 
 pub fn ast_to_cfg(
     ast: &ast::Rule<'_>,
@@ -46,7 +54,7 @@ pub fn ast_to_cfg(
 pub struct CfgRule {
     pub name: Arc<str>,
     pub select: Vec<CfgOpSelect>,
-    pub apply: Vec<CfgOpApply>,
+    pub apply: Vec<OpApply>,
     pub bindings_len: usize,
 }
 
@@ -169,7 +177,7 @@ fn verify_distinct_bindings(
 fn compile_rule_applys(
     env: &mut Env<'_>,
     rule_applys: &[ast::RuleApply<'_>],
-    ops: &mut Vec<CfgOpApply>,
+    ops: &mut Vec<OpApply>,
 ) -> Result<(), CompileError> {
     for rule_apply in rule_applys {
         compile_rule_apply(env, rule_apply, ops)?;
@@ -180,7 +188,7 @@ fn compile_rule_applys(
 fn compile_rule_apply(
     env: &mut Env<'_>,
     rule_apply: &ast::RuleApply<'_>,
-    ops: &mut Vec<CfgOpApply>,
+    ops: &mut Vec<OpApply>,
 ) -> Result<(), CompileError> {
     match rule_apply {
         ast::RuleApply::Remove(spec) => compile_apply_remove(env, spec, ops),
@@ -191,7 +199,7 @@ fn compile_rule_apply(
 fn compile_apply_add(
     env: &mut Env<'_>,
     spec: &ast::BindingAttributeSpec<'_>,
-    ops: &mut Vec<CfgOpApply>,
+    ops: &mut Vec<OpApply>,
 ) -> Result<(), CompileError> {
     let binding = existing_named_binding(env, &spec.variable, &spec.position)?;
     compile_apply_add_attribute(env, binding, &spec.attribute_spec, ops)
@@ -201,11 +209,11 @@ fn compile_apply_add_attribute(
     env: &mut Env<'_>,
     binding: usize,
     spec: &ast::AttributeSpec<'_>,
-    ops: &mut Vec<CfgOpApply>,
+    ops: &mut Vec<OpApply>,
 ) -> Result<(), CompileError> {
     match &spec.value_spec.kind {
         ast::ValueSpecKind::Literal(literal) => {
-            ops.push(CfgOpApply::AddValueAttribute {
+            ops.push(OpApply::AddValueAttribute {
                 binding,
                 attribute: spec.attribute.as_str().into(),
                 value: literal.to_value(),
@@ -214,7 +222,7 @@ fn compile_apply_add_attribute(
         },
         ast::ValueSpecKind::Variable(variable) => {
             let value_binding = existing_named_binding(env, variable, &spec.position)?;
-            ops.push(CfgOpApply::AddBindingAttribute {
+            ops.push(OpApply::AddBindingAttribute {
                 binding,
                 attribute: spec.attribute.as_str().into(),
                 value_binding,
@@ -224,7 +232,7 @@ fn compile_apply_add_attribute(
         ast::ValueSpecKind::Tuple(ast::Bindable { variable: direct, inner: values }) => {
             let value_binding = nameable_new_binding(env, direct, &spec.position)?;
             compile_apply_tuple(env, value_binding, values, true, ops)?;
-            ops.push(CfgOpApply::AddBindingAttribute {
+            ops.push(OpApply::AddBindingAttribute {
                 binding,
                 attribute: spec.attribute.as_str().into(),
                 value_binding,
@@ -237,7 +245,7 @@ fn compile_apply_add_attribute(
         ast::ValueSpecKind::Struct(ast::Bindable { variable: direct, inner: attributes }) => {
             let value_binding = nameable_new_binding(env, direct, &spec.position)?;
             compile_apply_object(env, value_binding, attributes, ops)?;
-            ops.push(CfgOpApply::AddBindingAttribute {
+            ops.push(OpApply::AddBindingAttribute {
                 binding,
                 attribute: spec.attribute.as_str().into(),
                 value_binding,
@@ -250,12 +258,12 @@ fn compile_apply_add_attribute(
 fn compile_apply_remove(
     env: &mut Env<'_>,
     spec: &ast::BindingAttributeSpec<'_>,
-    ops: &mut Vec<CfgOpApply>,
+    ops: &mut Vec<OpApply>,
 ) -> Result<(), CompileError> {
     let binding = existing_named_binding(env, &spec.variable, &spec.position)?;
     match &spec.attribute_spec.value_spec.kind {
         ast::ValueSpecKind::Literal(literal) => {
-            ops.push(CfgOpApply::RemoveValueAttribute {
+            ops.push(OpApply::RemoveValueAttribute {
                 binding,
                 attribute: spec.attribute_spec.attribute.as_str().into(),
                 value: literal.to_value(),
@@ -264,7 +272,7 @@ fn compile_apply_remove(
         },
         ast::ValueSpecKind::Variable(variable) => {
             let value_binding = named_binding(env, variable, &spec.position)?;
-            ops.push(CfgOpApply::RemoveBindingAttribute {
+            ops.push(OpApply::RemoveBindingAttribute {
                 binding,
                 attribute: spec.attribute_spec.attribute.as_str().into(),
                 value_binding,
@@ -274,7 +282,7 @@ fn compile_apply_remove(
         ast::ValueSpecKind::Tuple(ast::Bindable { variable: direct, inner: values }) => {
             let value_binding = nameable_new_binding(env, direct, &spec.position)?;
             compile_apply_tuple(env, value_binding, values, false, ops)?;
-            ops.push(CfgOpApply::RemoveBindingAttribute {
+            ops.push(OpApply::RemoveBindingAttribute {
                 binding,
                 attribute: spec.attribute_spec.attribute.as_str().into(),
                 value_binding,
@@ -294,9 +302,9 @@ fn compile_apply_object(
     env: &mut Env<'_>,
     binding: usize,
     attributes: &[ast::AttributeSpec<'_>],
-    ops: &mut Vec<CfgOpApply>,
+    ops: &mut Vec<OpApply>,
 ) -> Result<(), CompileError> {
-    ops.push(CfgOpApply::CreateObject {
+    ops.push(OpApply::CreateObject {
         binding,
     });
     for attribute in attributes {
@@ -310,28 +318,28 @@ fn compile_apply_tuple(
     binding: usize,
     values: &[ast::ValueSpec<'_>],
     allow_object_construction: bool,
-    ops: &mut Vec<CfgOpApply>,
+    ops: &mut Vec<OpApply>,
 ) -> Result<(), CompileError> {
     let mut cfg_tuple_items = Vec::new();
     for value_spec in values {
         match &value_spec.kind {
             ast::ValueSpecKind::Literal(literal) => {
-                cfg_tuple_items.push(CfgApplyTupleItem::Value(literal.to_value()));
+                cfg_tuple_items.push(ApplyTupleItem::Value(literal.to_value()));
             },
             ast::ValueSpecKind::Variable(variable) => {
                 let value_binding = existing_named_binding(env, variable, &value_spec.position)?;
-                cfg_tuple_items.push(CfgApplyTupleItem::Binding(value_binding));
+                cfg_tuple_items.push(ApplyTupleItem::Binding(value_binding));
             },
             ast::ValueSpecKind::Tuple(ast::Bindable { variable: direct, inner: values }) => {
                 let value_binding = nameable_new_binding(env, direct, &value_spec.position)?;
                 compile_apply_tuple(env, value_binding, values, allow_object_construction, ops)?;
-                cfg_tuple_items.push(CfgApplyTupleItem::Binding(value_binding));
+                cfg_tuple_items.push(ApplyTupleItem::Binding(value_binding));
             },
             ast::ValueSpecKind::Struct(ast::Bindable { variable: direct, inner: attributes }) => {
                 if allow_object_construction {
                     let value_binding = nameable_new_binding(env, direct, &value_spec.position)?;
                     compile_apply_object(env, value_binding, attributes, ops)?;
-                    cfg_tuple_items.push(CfgApplyTupleItem::Binding(value_binding));
+                    cfg_tuple_items.push(ApplyTupleItem::Binding(value_binding));
                 } else {
                     return Err(CompileError::IllegalObjectSpecification {
                         line: value_spec.position.location_line(),
@@ -345,7 +353,7 @@ fn compile_apply_tuple(
             },
         }
     }
-    ops.push(CfgOpApply::CreateTuple {
+    ops.push(OpApply::CreateTuple {
         binding,
         items: cfg_tuple_items,
     });
@@ -390,43 +398,6 @@ fn nameable_new_binding(
     } else {
         Ok(env.anon())
     }
-}
-
-#[derive(Debug, Clone)]
-pub enum CfgOpApply {
-    CreateObject {
-        binding: usize,
-    },
-    CreateTuple {
-        binding: usize,
-        items: Vec<CfgApplyTupleItem>,
-    },
-    AddBindingAttribute {
-        binding: usize,
-        attribute: Symbol,
-        value_binding: usize,
-    },
-    RemoveBindingAttribute {
-        binding: usize,
-        attribute: Symbol,
-        value_binding: usize,
-    },
-    AddValueAttribute {
-        binding: usize,
-        attribute: Symbol,
-        value: Value,
-    },
-    RemoveValueAttribute {
-        binding: usize,
-        attribute: Symbol,
-        value: Value,
-    },
-}
-
-#[derive(Debug, Clone)]
-pub enum CfgApplyTupleItem {
-    Value(Value),
-    Binding(usize),
 }
 
 fn compile_rule_selects(

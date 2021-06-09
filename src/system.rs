@@ -65,6 +65,7 @@ pub enum LoadError {
     Parse(String),
     Compile(compiler::CompileError),
     DuplicateRuleName(Arc<str>),
+    NoSuchSystem(Arc<str>),
 }
 
 pub struct SystemLoader<'a> {
@@ -80,16 +81,18 @@ impl<'a> SystemLoader<'a> {
     pub fn load_str(&mut self, contents: &str) -> Result<usize, LoadError> {
         let parsed_rules = parser::parse(contents)
             .map_err(LoadError::Parse)?;
-        for rule in parsed_rules {
+        let rule_count = parsed_rules.len();
+        'rules: for rule in parsed_rules {
             for system in &mut self.systems {
                 if system.name().as_ref() == rule.system_name.as_str() {
                     let compiled = compiler::compile(&rule, system.input_variables())
                         .map_err(LoadError::Compile)?;
-                    dbg!(&compiled);
                     system.load(compiled)?;
+                    continue 'rules;
                 }
             }
+            return Err(LoadError::NoSuchSystem(rule.system_name.as_str().into()));
         }
-        todo!()
+        Ok(rule_count)
     }
 }
