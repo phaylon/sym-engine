@@ -153,6 +153,10 @@ macro_rules! impl_match_value {
     }
 }
 
+impl_match_value!(Value, |cmp, val| {
+    val == cmp
+});
+
 impl_match_value!(Id, |cmp, val| {
     val.to_object().map(|id| id == *cmp).unwrap_or(false)
 });

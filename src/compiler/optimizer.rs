@@ -73,7 +73,9 @@ pub fn optimize(mut rule: CfgRule, input_bindings_len: usize) -> Vec<Op> {
     let provided_bindings = (0..input_bindings_len).collect::<Vec<usize>>();
     let ops = assemble_ops(&rule.select, &OpState::new(&provided_bindings), &mut sequence);
 
-    ops.expect("search op order solution").ops
+    let mut ops = ops.expect("search op order solution").ops;
+    ops.push(Op::End);
+    ops
 }
 
 fn assemble_ops(select: &[CfgOpSelect], prev: &OpState, seq: &mut Sequence) -> Option<OpState> {

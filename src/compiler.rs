@@ -36,7 +36,7 @@ impl CompiledRule {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum CompileError {
     IllegalWildcard {
         line: u32,
@@ -128,6 +128,13 @@ impl CompareValue {
         match *self {
             Self::Binding(binding) => Some(binding),
             _ => None,
+        }
+    }
+
+    pub fn resolve<'a>(&'a self, bindings: &'a [Value]) -> &'a Value {
+        match self {
+            CompareValue::Binding(binding) => &bindings[*binding],
+            CompareValue::Value(value) => value,
         }
     }
 }

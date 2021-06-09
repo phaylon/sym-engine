@@ -251,6 +251,25 @@ pub trait Access: Debug {
     ) -> bool;
 }
 
+#[derive(Debug, Clone)]
+pub struct AttributesIter<'a> {
+    attributes: &'a [(Symbol, Value)],
+}
+
+impl<'a> Iterator for AttributesIter<'a> {
+
+    type Item = (&'a Symbol, &'a Value);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(((name, value), rest)) = self.attributes.split_first() {
+            self.attributes = rest;
+            Some((name, value))
+        } else {
+            None
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Attributes<'a> {
     object: Id,
@@ -283,15 +302,19 @@ impl<'a> Attributes<'a> {
     where
         M: MatchValue + ?Sized,
     {
-        self.iter().any(|(ex_name, ex_value)| {
+        self.attributes.iter().any(|(ex_name, ex_value)| {
             ex_name.as_ref() == name
             &&
             value.match_value(ex_value)
         })
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (&'a Symbol, &'a Value)> {
-        self.attributes.iter().map(|(name, value)| (name, value))
+    pub fn has_named(&self, name: &str) -> bool {
+        self.attributes.iter().any(|(ex_name, _)| ex_name.as_ref() == name)
+    }
+
+    pub fn iter(&self) -> AttributesIter<'a> {
+        AttributesIter { attributes: self.attributes }
     }
 
     pub fn iter_named<'n>(&self, name: &'n str) -> impl Iterator<Item = &'a Value> + 'n

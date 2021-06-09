@@ -5,6 +5,7 @@ use super::{EnumOption, Calculation, CompareValue};
 
 #[derive(Debug, Clone)]
 pub enum Op {
+    End,
     BeginNot {
         index: usize,
         sequence_len: usize,
