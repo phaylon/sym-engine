@@ -14,6 +14,7 @@ pub struct CompiledRule {
     name: Arc<str>,
     bindings_len: usize,
     ops: Vec<Op>,
+    apply_ops: Vec<OpApply>,
 }
 
 impl CompiledRule {
@@ -28,6 +29,10 @@ impl CompiledRule {
 
     pub fn ops(&self) -> &[Op] {
         &self.ops
+    }
+
+    pub fn apply_ops(&self) -> &[OpApply] {
+        &self.apply_ops
     }
 }
 
@@ -76,8 +81,9 @@ pub fn compile(
     let cfg = cfg::ast_to_cfg(ast, input_variables)?;
     let bindings_len = cfg.bindings_len;
     let name = cfg.name.as_ref().into();
+    let apply_ops = cfg.apply.clone();
     let ops = optimizer::optimize(cfg, input_variables.len());
-    Ok(CompiledRule { name, bindings_len, ops })
+    Ok(CompiledRule { name, bindings_len, ops, apply_ops })
 }
 
 #[derive(Debug, Clone)]
