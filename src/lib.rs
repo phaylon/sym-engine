@@ -1,3 +1,4 @@
+#![allow(unused_parens)]
 
 mod data;
 mod space;

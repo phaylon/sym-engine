@@ -5,6 +5,8 @@ use crate::{parser, compiler};
 pub struct System {
     name: Arc<str>,
     input_variables: Vec<Arc<str>>,
+    max_binding_len: usize,
+    rules: Vec<compiler::CompiledRule>,
 }
 
 #[derive(Debug)]
@@ -33,6 +35,8 @@ impl System {
         Ok(Self {
             name: name.into(),
             input_variables: input_variables.iter().map(|&var| var.into()).collect(),
+            max_binding_len: input_variables.len(),
+            rules: Vec::new(),
         })
     }
 
@@ -45,7 +49,14 @@ impl System {
     }
 
     fn load(&mut self, rule: compiler::CompiledRule) -> Result<(), LoadError> {
-        todo!()
+        if self.rules.iter().any(|ex| ex.name() == rule.name()) {
+            return Err(LoadError::DuplicateRuleName(rule.name().clone()));
+        }
+        if rule.bindings_len() > self.max_binding_len {
+            self.max_binding_len = rule.bindings_len();
+        }
+        self.rules.push(rule);
+        Ok(())
     }
 }
 
@@ -53,6 +64,7 @@ impl System {
 pub enum LoadError {
     Parse(String),
     Compile(compiler::CompileError),
+    DuplicateRuleName(Arc<str>),
 }
 
 pub struct SystemLoader<'a> {
@@ -73,6 +85,8 @@ impl<'a> SystemLoader<'a> {
                 if system.name().as_ref() == rule.system_name.as_str() {
                     let compiled = compiler::compile(&rule, system.input_variables())
                         .map_err(LoadError::Compile)?;
+                    dbg!(&compiled);
+                    system.load(compiled)?;
                 }
             }
         }

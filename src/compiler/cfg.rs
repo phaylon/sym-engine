@@ -2,11 +2,12 @@
 use std::sync::{Arc};
 use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
 use std::cell::{RefCell};
+use fnv::{FnvHashSet};
 use std::collections::{HashMap};
 use crate::{ast, Symbol, Value};
-use crate::data::{ArithBinOp, CompareOp};
+use crate::data::{CompareOp};
 use crate::parser::{Span};
-use super::{CompileError};
+use super::{CompileError, EnumOption, OpenTupleItem, Calculation, CompareValue};
 
 pub fn ast_to_cfg(
     ast: &ast::Rule<'_>,
@@ -16,7 +17,8 @@ pub fn ast_to_cfg(
     let index_sequence = AtomicUsize::new(0);
     let instance_counts = RefCell::new(HashMap::new());
     let access_counts = RefCell::new(HashMap::new());
-    let mut env = Env::new(&index_sequence, &instance_counts, &access_counts);
+    let binding_names = RefCell::new(HashMap::new());
+    let mut env = Env::new(&index_sequence, &instance_counts, &access_counts, &binding_names);
 
     for variable in input_variables {
         env.bind(variable);
@@ -54,6 +56,7 @@ struct Env<'a> {
     visible_bindings: HashMap<String, usize>,
     instance_counts: &'a RefCell<HashMap<String, usize>>,
     access_counts: &'a RefCell<HashMap<usize, usize>>,
+    binding_names: &'a RefCell<HashMap<usize, String>>,
 }
 
 impl<'a> Env<'a> {
@@ -62,13 +65,19 @@ impl<'a> Env<'a> {
         index_sequence: &'a AtomicUsize,
         instance_counts: &'a RefCell<HashMap<String, usize>>,
         access_counts: &'a RefCell<HashMap<usize, usize>>,
+        binding_names: &'a RefCell<HashMap<usize, String>>,
     ) -> Self {
         Self {
             index_sequence,
             instance_counts,
             access_counts,
+            binding_names,
             visible_bindings: HashMap::new(),
         }
+    }
+
+    fn binding_set(&self) -> FnvHashSet<usize> {
+        self.visible_bindings.values().copied().collect()
     }
 
     fn bind(&mut self, name: &str) -> usize {
@@ -80,6 +89,7 @@ impl<'a> Env<'a> {
             self.visible_bindings.insert(name.into(), binding);
             *self.instance_counts.borrow_mut().entry(name.into()).or_insert(0) += 1;
             *self.access_counts.borrow_mut().entry(binding).or_insert(0) += 1;
+            self.binding_names.borrow_mut().entry(binding).or_insert_with(|| name.into());
             binding
         }
     }
@@ -104,13 +114,8 @@ impl<'a> Env<'a> {
         self.index_sequence.fetch_add(1, AtomicOrdering::SeqCst)
     }
 
-    fn binding(&self, binding: usize) -> Option<&str> {
-        for (name, ex_binding) in &self.visible_bindings {
-            if binding == *ex_binding {
-                return Some(name.as_str());
-            }
-        }
-        None
+    fn binding_name(&self, binding: usize) -> Option<String> {
+        self.binding_names.borrow().get(&binding).cloned()
     }
 }
 
@@ -122,7 +127,7 @@ fn verify_multi_usage(
     let mut single_use = Vec::new();
     for (binding, count) in access_counts {
         if *count == 1 {
-            if let Some(name) = env.binding(*binding) {
+            if let Some(name) = env.binding_name(*binding) {
                 single_use.push(name.into());
             }
         }
@@ -465,6 +470,7 @@ fn compile_rule_select(
             let mut sub_env = env.clone();
             compile_rule_selects(&mut sub_env, sub_selects, &mut sub_ops)?;
             ops.push(CfgOpSelect::Not {
+                inherited_bindings: env.binding_set(),
                 body: sub_ops,
             });
             Ok(())
@@ -473,7 +479,7 @@ fn compile_rule_select(
             compile_select_comparison(env, comparison, ops)
         },
         ast::RuleSelect::Calculation(variable, calculation, position) => {
-            let result_binding = named_binding(env, variable, position)?;
+            let result_binding = named_new_binding(env, variable, position)?;
             let operation = compile_calculation(env, position, calculation)?;
             ops.push(CfgOpSelect::Calculation {
                 result_binding,
@@ -488,16 +494,16 @@ fn compile_calculation(
     env: &mut Env,
     position: &Span<'_>,
     calculation: &ast::Calculation<'_>,
-) -> Result<CfgCalculation, CompileError> {
+) -> Result<Calculation, CompileError> {
     match calculation {
         ast::Calculation::Int(value) =>
-            Ok(CfgCalculation::Value(Value::from(*value))),
+            Ok(Calculation::Value(Value::from(*value))),
         ast::Calculation::Float(value) =>
-            Ok(CfgCalculation::Value(Value::from(*value))),
+            Ok(Calculation::Value(Value::from(*value))),
         ast::Calculation::Variable(variable) =>
-            Ok(CfgCalculation::Binding(named_binding(env, variable, position)?)),
+            Ok(Calculation::Binding(named_binding(env, variable, position)?)),
         ast::Calculation::BimOp(op, left, right) =>
-            Ok(CfgCalculation::BinOp(
+            Ok(Calculation::BinOp(
                 *op,
                 Box::new(compile_calculation(env, position, left)?),
                 Box::new(compile_calculation(env, position, right)?),
@@ -509,12 +515,12 @@ fn compile_comparable(
     env: &mut Env,
     position: &Span<'_>,
     comparable: &ast::Comparable<'_>,
-) -> Result<CfgCompareValue, CompileError> {
+) -> Result<CompareValue, CompileError> {
     Ok(match comparable {
-        ast::Comparable::Int(value) => CfgCompareValue::Value(Value::from(*value)),
-        ast::Comparable::Float(value) => CfgCompareValue::Value(Value::from(*value)),
+        ast::Comparable::Int(value) => CompareValue::Value(Value::from(*value)),
+        ast::Comparable::Float(value) => CompareValue::Value(Value::from(*value)),
         ast::Comparable::Variable(variable) => {
-            CfgCompareValue::Binding(named_binding(env, variable, position)?)
+            CompareValue::Binding(named_binding(env, variable, position)?)
         },
     })
 }
@@ -578,33 +584,33 @@ fn compile_select_tuple(
     for ast::ValueSpec { position, kind } in items {
         match kind {
             ast::ValueSpecKind::Literal(literal) => {
-                cfg_tuple_items.push(CfgTupleItem::Compare(literal.to_value()));
+                cfg_tuple_items.push(OpenTupleItem::Compare(literal.to_value()));
             },
             ast::ValueSpecKind::Variable(variable) => {
                 match optional_binding(env, variable) {
                     Some(item_binding) => {
-                        cfg_tuple_items.push(CfgTupleItem::Binding(item_binding));
+                        cfg_tuple_items.push(OpenTupleItem::Binding(item_binding));
                     },
                     None => {
-                        cfg_tuple_items.push(CfgTupleItem::Ignore);
+                        cfg_tuple_items.push(OpenTupleItem::Ignore);
                     },
                 }
             },
             ast::ValueSpecKind::Enum(ast::Bindable { variable: direct, inner: options }) => {
                 let item_binding = nameable_binding(env, direct);
                 compile_select_enum(env, item_binding, options, position, ops)?;
-                cfg_tuple_items.push(CfgTupleItem::Binding(item_binding));
+                cfg_tuple_items.push(OpenTupleItem::Binding(item_binding));
             },
             ast::ValueSpecKind::Tuple(ast::Bindable { variable: direct, inner: items }) => {
                 let item_binding = nameable_binding(env, direct);
                 compile_select_tuple(env, item_binding, items, ops)?;
-                cfg_tuple_items.push(CfgTupleItem::Binding(item_binding));
+                cfg_tuple_items.push(OpenTupleItem::Binding(item_binding));
             },
             ast::ValueSpecKind::Struct(ast::Bindable { variable: direct, inner: attributes }) => {
                 let item_binding = nameable_binding(env, direct);
                 ops.push(CfgOpSelect::AssertObjectBinding { binding: item_binding });
                 compile_select_attributes(env, item_binding, attributes, position, ops)?;
-                cfg_tuple_items.push(CfgTupleItem::Binding(item_binding));
+                cfg_tuple_items.push(OpenTupleItem::Binding(item_binding));
             },
         }
     }
@@ -705,11 +711,11 @@ fn compile_select_enum(
     for option in options {
         match option {
             ast::Enumerable::Literal(literal) => {
-                cfg_enum_items.push(CfgEnumOption::Value(literal.to_value()));
+                cfg_enum_items.push(EnumOption::Value(literal.to_value()));
             },
             ast::Enumerable::Variable(variable) => {
                 let item_binding = named_binding(env, variable, position)?;
-                cfg_enum_items.push(CfgEnumOption::Binding(item_binding));
+                cfg_enum_items.push(EnumOption::Binding(item_binding));
             },
         }
     }
@@ -764,6 +770,25 @@ fn named_binding(
     }
 }
 
+fn named_new_binding(
+    env: &mut Env<'_>,
+    variable: &ast::Variable<'_>,
+    position: &Span<'_>,
+) -> Result<usize, CompileError> {
+    if let Some(name) = variable.as_str() {
+        if let Some(binding) = env.find(name) {
+            Ok(binding)
+        } else {
+            Err(CompileError::IllegalReuse {
+                line: position.location_line(),
+                name: name.into(),
+            })
+        }
+    } else {
+        Err(CompileError::IllegalWildcard { line: position.location_line() })
+    }
+}
+
 fn named_binding_with_name(
     env: &mut Env<'_>,
     variable: &ast::Variable<'_>,
@@ -787,11 +812,11 @@ pub enum CfgOpSelect {
     },
     TupleBinding {
         binding: usize,
-        values: Vec<CfgTupleItem>,
+        values: Vec<OpenTupleItem>,
     },
     EnumBinding {
         binding: usize,
-        options: Vec<CfgEnumOption>,
+        options: Vec<EnumOption>,
     },
     RequireValueAttribute {
         binding: usize,
@@ -809,40 +834,15 @@ pub enum CfgOpSelect {
     },
     Not {
         body: Vec<CfgOpSelect>,
+        inherited_bindings: FnvHashSet<usize>,
     },
     Compare {
         operator: CompareOp,
-        left: CfgCompareValue,
-        right: CfgCompareValue,
+        left: CompareValue,
+        right: CompareValue,
     },
     Calculation {
         result_binding: usize,
-        operation: CfgCalculation,
+        operation: Calculation,
     },
-}
-
-#[derive(Debug, Clone)]
-pub enum CfgCalculation {
-    Value(Value),
-    Binding(usize),
-    BinOp(ArithBinOp, Box<CfgCalculation>, Box<CfgCalculation>),
-}
-
-#[derive(Debug, Clone)]
-pub enum CfgCompareValue {
-    Binding(usize),
-    Value(Value),
-}
-
-#[derive(Debug, Clone)]
-pub enum CfgEnumOption {
-    Binding(usize),
-    Value(Value),
-}
-
-#[derive(Debug, Clone)]
-pub enum CfgTupleItem {
-    Ignore,
-    Binding(usize),
-    Compare(Value),
 }
