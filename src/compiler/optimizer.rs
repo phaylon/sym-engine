@@ -111,7 +111,7 @@ fn assemble_ops(select: &[CfgOpSelect], prev: &OpState, seq: &mut Sequence) -> O
 
     if !branches.is_empty() {
         let (selected_state, rest_ops) = branches.remove(0);
-        debug_assert!(rest_ops.is_empty(), "all ops consumed");
+        assert!(rest_ops.is_empty(), "all cfg ops consumed");
         Some(selected_state)
     } else {
         None
