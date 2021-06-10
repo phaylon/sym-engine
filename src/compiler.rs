@@ -198,26 +198,3 @@ pub enum ApplyTupleItem {
     Value(Value),
     Binding(usize),
 }
-
-#[test]
-fn dump() {
-    let mut system = crate::System::new("test", &["A"]).unwrap();
-    let mut loader = crate::SystemLoader::new(vec![&mut system]);
-    loader.load_str("
-        rule test:test_a {
-            $A.mode: foo,
-            $A.a: $a @ {
-                x: 23,
-                y: [y, $y],
-            },
-            $A.b: $b @ {
-                x: 42,
-                y: [y, $y, $x, $x],
-            },
-            $a != $b,
-            not { $a.disable: $ },
-        } do {
-            - $A.x: 23,
-        }
-    ").unwrap();
-}

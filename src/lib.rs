@@ -8,6 +8,27 @@ mod system;
 mod compiler;
 mod runtime;
 
-pub use data::{Value, Symbol, Tuple, MatchValue};
-pub use space::{Space, Access, Attributes, AttributesMut, Id, Transaction, AttributesIter};
-pub use system::{System, SystemLoader, SystemError, RuntimeError, FileLoadError, FileLoadErrorKind};
+pub use data::{
+    Value,
+    Symbol,
+    Tuple,
+    MatchValue,
+};
+pub use space::{
+    Space,
+    Access,
+    Attributes,
+    AttributesMut,
+    Id,
+    Transaction,
+    AttributesIter,
+};
+pub use system::{
+    System,
+    SystemLoader,
+    SystemError,
+    RuntimeError,
+    LoadError,
+    FileLoadError,
+    FileLoadErrorKind,
+};
