@@ -10,6 +10,20 @@ fn test_run(space: &mut Space, root: Id, rules: &str) -> Option<Value> {
     space.attributes_mut(root).remove_first_named("result").map(|(_, val)| val)
 }
 
+fn load_error(rules: &str) -> Option<LoadError> {
+    let mut system = System::new("test", &["ROOT"]).unwrap();
+    let mut loader = SystemLoader::new(vec![&mut system]);
+    loader.load_str(rules).err()
+}
+
+#[test]
+fn single_use_error() {
+    assert_matches!(
+        load_error("rule test:x { $ROOT.x: $x } do {}"),
+        Some(LoadError::Compile(CompileError::SingleBindingUse { .. }))
+    );
+}
+
 #[test]
 fn select_attributes() {
 
@@ -90,6 +104,19 @@ fn select_attributes() {
 }
 
 #[test]
+fn select_attributes_errors() {
+
+    assert_matches!(
+        load_error("rule test:x { $.foo: 23 } do {}"),
+        Some(LoadError::Compile(CompileError::IllegalWildcard { .. }))
+    );
+    assert_matches!(
+        load_error("rule test:x { $unknown.foo: 23 } do {}"),
+        Some(LoadError::Compile(CompileError::IllegalNewBinding { .. }))
+    );
+}
+
+#[test]
 fn apply_remove_attributes() {
 
     let mut space = Space::new();
@@ -118,6 +145,31 @@ fn apply_remove_attributes() {
         }
     "), Some(Value::Int(99)));
     assert!(!space.attributes(root).has_named("value"));
+}
+
+#[test]
+fn apply_remove_attributes_errors() {
+
+    assert_matches!(
+        load_error("rule test:x {} do { - $.value: 23 }"),
+        Some(LoadError::Compile(CompileError::IllegalWildcard { .. }))
+    );
+    assert_matches!(
+        load_error("rule test:x {} do { - $unknown.value: 23 }"),
+        Some(LoadError::Compile(CompileError::IllegalNewBinding { .. }))
+    );
+    assert_matches!(
+        load_error("rule test:x {} do { - $ROOT.value: $x }"),
+        Some(LoadError::Compile(CompileError::IllegalNewBinding { .. }))
+    );
+    assert_matches!(
+        load_error("rule test:x {} do { - $ROOT.value: $ }"),
+        Some(LoadError::Compile(CompileError::IllegalWildcard { .. }))
+    );
+    assert_matches!(
+        load_error("rule test:x {} do { - $ROOT.value: {} }"),
+        Some(LoadError::Compile(CompileError::IllegalObjectSpecification { .. }))
+    );
 }
 
 #[test]
@@ -177,6 +229,27 @@ fn apply_add_attributes() {
 }
 
 #[test]
+fn apply_add_attributes_errors() {
+
+    assert_matches!(
+        load_error("rule test:x {} do { + $.value: 23 }"),
+        Some(LoadError::Compile(CompileError::IllegalWildcard { .. }))
+    );
+    assert_matches!(
+        load_error("rule test:x {} do { + $unknown.value: 23 }"),
+        Some(LoadError::Compile(CompileError::IllegalNewBinding { .. }))
+    );
+    assert_matches!(
+        load_error("rule test:x {} do { + $ROOT.value: $x }"),
+        Some(LoadError::Compile(CompileError::IllegalNewBinding { .. }))
+    );
+    assert_matches!(
+        load_error("rule test:x {} do { + $ROOT.value: $ }"),
+        Some(LoadError::Compile(CompileError::IllegalWildcard { .. }))
+    );
+}
+
+#[test]
 fn select_bindings() {
 
     let mut space = Space::new();
@@ -203,6 +276,19 @@ fn select_bindings() {
 }
 
 #[test]
+fn select_bindings_errors() {
+
+    assert_matches!(
+        load_error("rule test:x { $: 23 } do {}"),
+        Some(LoadError::Compile(CompileError::IllegalWildcard { .. }))
+    );
+    assert_matches!(
+        load_error("rule test:x { $unknown: 23 } do {}"),
+        Some(LoadError::Compile(CompileError::IllegalNewBinding { .. }))
+    );
+}
+
+#[test]
 fn enums() {
 
     let mut space = Space::new();
@@ -221,6 +307,16 @@ fn enums() {
     assert_matches!(test_run(&mut space, root, "
         rule test:ok {
             $ROOT.value: $value @ x | 42 | 23 | 99,
+        } do {
+            + $ROOT.result: $value,
+        }
+    "), Some(Value::Int(23)));
+
+    // capture toplevel
+    assert_matches!(test_run(&mut space, root, "
+        rule test:ok {
+            $ROOT.value: $value,
+            $value: x | 23 | y,
         } do {
             + $ROOT.result: $value,
         }
@@ -255,6 +351,27 @@ fn enums() {
             + $ROOT.result: 99,
         }
     "), Some(Value::Int(99)));
+}
+
+#[test]
+fn enum_errors() {
+
+    assert_matches!(
+        load_error("rule test:x { $ROOT.x: 23 | $unknown } do {}"),
+        Some(LoadError::Compile(CompileError::IllegalNewBinding { .. }))
+    );
+    assert_matches!(
+        load_error("rule test:x { $ROOT.x: 23 | $ } do {}"),
+        Some(LoadError::Compile(CompileError::IllegalWildcard { .. }))
+    );
+    assert_matches!(
+        load_error("rule test:x { } do { + $ROOT.x: x | y }"),
+        Some(LoadError::Compile(CompileError::IllegalEnumSpecification { .. }))
+    );
+    assert_matches!(
+        load_error("rule test:x { } do { - $ROOT.x: x | y }"),
+        Some(LoadError::Compile(CompileError::IllegalEnumSpecification { .. }))
+    );
 }
 
 #[test]
@@ -329,6 +446,19 @@ fn select_tuples() {
             + $ROOT.result: $value,
         }
     "), Some(Value::Int(13)));
+}
+
+#[test]
+fn tuple_errors() {
+
+    assert_matches!(
+        load_error("rule test:x {} do { + $ROOT.x: [$] }"),
+        Some(LoadError::Compile(CompileError::IllegalWildcard { .. }))
+    );
+    assert_matches!(
+        load_error("rule test:x {} do { + $ROOT.x: [$unknown] }"),
+        Some(LoadError::Compile(CompileError::IllegalNewBinding { .. }))
+    );
 }
 
 #[test]
@@ -425,6 +555,19 @@ fn not_clauses() {
 }
 
 #[test]
+fn not_clauses_errors() {
+
+    assert_matches!(
+        load_error("rule test:x { not { $.x: 23 } } do {}"),
+        Some(LoadError::Compile(CompileError::IllegalWildcard { .. }))
+    );
+    assert_matches!(
+        load_error("rule test:x { not { $ROOT.value: $x }, $ROOT.other: $x } do {}"),
+        Some(LoadError::Compile(CompileError::RepeatBindings { .. }))
+    );
+}
+
+#[test]
 fn math() {
 
     let mut space = Space::new();
@@ -488,6 +631,27 @@ fn math() {
             + $ROOT.result: $out,
         }
     "), Some(Value::Int(70)));
+}
+
+#[test]
+fn math_errors() {
+
+    assert_matches!(
+        load_error("rule test:x { $ is 2+3 } do {}"),
+        Some(LoadError::Compile(CompileError::IllegalWildcard { .. }))
+    );
+    assert_matches!(
+        load_error("rule test:x { $ROOT.x: $x, $x is 2+3 } do {}"),
+        Some(LoadError::Compile(CompileError::IllegalReuse { .. }))
+    );
+    assert_matches!(
+        load_error("rule test:x { $new is 2+$ } do {}"),
+        Some(LoadError::Compile(CompileError::IllegalWildcard { .. }))
+    );
+    assert_matches!(
+        load_error("rule test:x { $new is 2+$unknown } do {}"),
+        Some(LoadError::Compile(CompileError::IllegalNewBinding { .. }))
+    );
 }
 
 #[test]
@@ -574,4 +738,17 @@ fn comparisons() {
             + $ROOT.result: $value,
         }
     "), Some(Value::Int(10)));
+}
+
+#[test]
+fn comparison_errors() {
+
+    assert_matches!(
+        load_error("rule test:x { $ROOT == $ } do {}"),
+        Some(LoadError::Compile(CompileError::IllegalWildcard { .. }))
+    );
+    assert_matches!(
+        load_error("rule test:x { $ROOT == $unknown } do {}"),
+        Some(LoadError::Compile(CompileError::IllegalNewBinding { .. }))
+    );
 }

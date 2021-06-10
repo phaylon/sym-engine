@@ -33,3 +33,6 @@ pub use system::{
     FileLoadError,
     FileLoadErrorKind,
 };
+pub use compiler::{
+    CompileError,
+};
