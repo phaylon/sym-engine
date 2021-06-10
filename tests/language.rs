@@ -372,10 +372,206 @@ fn apply_add_tuple() {
     space.attributes_mut(root).add("value", 23);
 
     assert_matches!(test_run(&mut space, root, "
-    rule test:ok {
-        $ROOT.value: $value,
-    } do {
-        + $ROOT.result: [foo, $value],
-    }
+        rule test:ok {
+            $ROOT.value: $value,
+        } do {
+            + $ROOT.result: [foo, $value],
+        }
     "), Some(found) if found == tuple);
+}
+
+#[test]
+fn not_clauses() {
+
+    let mut space = Space::new();
+    let obj_with_value = space.create_object().apply(|attrs| {
+        attrs.add("value", 23);
+        attrs.object()
+    });
+    let obj_without_value = space.create_object().apply(|attrs| {
+        attrs.add("other", 42);
+        attrs.object()
+    });
+    let root = space.create_object().apply(|attrs| {
+        attrs.add("valued", obj_with_value);
+        attrs.add("valued", obj_without_value);
+        attrs.add("search", 23);
+        attrs.add("other", 23);
+        attrs.add("other", 33);
+        attrs.object()
+    });
+
+    // outer binding
+    assert_matches!(test_run(&mut space, root, "
+        rule test:ok {
+            $ROOT.valued: $obj,
+            not { $obj.value: 23 },
+        } do {
+            + $ROOT.result: $obj,
+        }
+    "), Some(Value::Object(id)) if id == obj_without_value);
+
+    // inner bindings
+    assert_matches!(test_run(&mut space, root, "
+        rule test:ok {
+            $ROOT.other: $value,
+            not {
+                $ROOT.valued: { value: $value },
+            },
+        } do {
+            + $ROOT.result: $value,
+        }
+    "), Some(Value::Int(33)));
+}
+
+#[test]
+fn math() {
+
+    let mut space = Space::new();
+    let root = space.create_id();
+    space.attributes_mut(root).add("value", 23);
+
+    // add
+    assert_matches!(test_run(&mut space, root, "
+        rule test:ok {
+            $ROOT.value: $value,
+            $out is $value + 10,
+        } do {
+            + $ROOT.result: $out,
+        }
+    "), Some(Value::Int(33)));
+
+    // subtract
+    assert_matches!(test_run(&mut space, root, "
+        rule test:ok {
+            $ROOT.value: $value,
+            $out is $value - 10,
+        } do {
+            + $ROOT.result: $out,
+        }
+    "), Some(Value::Int(13)));
+
+    // multiply
+    assert_matches!(test_run(&mut space, root, "
+        rule test:ok {
+            $ROOT.value: $value,
+            $out is $value * 10,
+        } do {
+            + $ROOT.result: $out,
+        }
+    "), Some(Value::Int(230)));
+
+    // division
+    assert_matches!(test_run(&mut space, root, "
+        rule test:ok {
+            $ROOT.value: $value,
+            $out is 46 / $value,
+        } do {
+            + $ROOT.result: $out,
+        }
+    "), Some(Value::Int(2)));
+
+    // multiply before add
+    assert_matches!(test_run(&mut space, root, "
+        rule test:ok {
+            $out is 2*3+4*5,
+        } do {
+            + $ROOT.result: $out,
+        }
+    "), Some(Value::Int(26)));
+
+    // grouping
+    assert_matches!(test_run(&mut space, root, "
+        rule test:ok {
+            $out is 2*(3+4)*5,
+        } do {
+            + $ROOT.result: $out,
+        }
+    "), Some(Value::Int(70)));
+}
+
+#[test]
+fn comparisons() {
+
+    let mut space = Space::new();
+    let root = space.create_id();
+    space.attributes_mut(root).add("value", 5);
+    space.attributes_mut(root).add("value", 10);
+    space.attributes_mut(root).add("value", 15);
+
+    // equals
+    assert_matches!(test_run(&mut space, root, "
+        rule test:ok {
+            $ROOT.value: $value,
+            $value == 10,
+        } do {
+            + $ROOT.result: $value,
+        }
+    "), Some(Value::Int(10)));
+
+    // not equals
+    assert_matches!(test_run(&mut space, root, "
+        rule test:ok {
+            $ROOT.value: $value,
+            $value != 5,
+        } do {
+            + $ROOT.result: $value,
+        }
+    "), Some(Value::Int(10)));
+
+    // less
+    assert_matches!(test_run(&mut space, root, "
+        rule test:ok {
+            $ROOT.value: $value,
+            $value < 15,
+        } do {
+            + $ROOT.result: $value,
+        }
+    "), Some(Value::Int(5)));
+
+    // greater
+    assert_matches!(test_run(&mut space, root, "
+        rule test:ok {
+            $ROOT.value: $value,
+            $value > 5,
+        } do {
+            + $ROOT.result: $value,
+        }
+    "), Some(Value::Int(10)));
+
+    // less or equal
+    assert_matches!(test_run(&mut space, root, "
+        rule test:ok {
+            $ROOT.value: $value,
+            $value <= 5,
+        } do {
+            + $ROOT.result: $value,
+        }
+    "), Some(Value::Int(5)));
+    assert_matches!(test_run(&mut space, root, "
+        rule test:ok {
+            $ROOT.value: $value,
+            $value <= 10,
+        } do {
+            + $ROOT.result: $value,
+        }
+    "), Some(Value::Int(5)));
+
+    // greater or equal
+    assert_matches!(test_run(&mut space, root, "
+        rule test:ok {
+            $ROOT.value: $value,
+            $value >= 5,
+        } do {
+            + $ROOT.result: $value,
+        }
+    "), Some(Value::Int(5)));
+    assert_matches!(test_run(&mut space, root, "
+        rule test:ok {
+            $ROOT.value: $value,
+            $value >= 10,
+        } do {
+            + $ROOT.result: $value,
+        }
+    "), Some(Value::Int(10)));
 }

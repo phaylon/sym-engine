@@ -268,10 +268,10 @@ fn comparison(input: Span<'_>) -> Parsed<'_, ast::Comparison<'_>> {
             wsc(nc::alt((
                 nc::value(CompareOp::Equal, nc::tag("==")),
                 nc::value(CompareOp::NotEqual, nc::tag("!=")),
-                nc::value(CompareOp::Less, nc::tag("<")),
                 nc::value(CompareOp::LessOrEqual, nc::tag("<=")),
-                nc::value(CompareOp::Greater, nc::tag(">")),
+                nc::value(CompareOp::Less, nc::tag("<")),
                 nc::value(CompareOp::GreaterOrEqual, nc::tag(">=")),
+                nc::value(CompareOp::Greater, nc::tag(">")),
             ))),
             nc::cut(comparable),
         )),
