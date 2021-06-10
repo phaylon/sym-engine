@@ -39,7 +39,7 @@ pub fn ast_to_cfg(
     compile_rule_applys(&mut env, &ast.apply, &mut apply)?;
 
     verify_distinct_bindings(&instance_counts.borrow())?;
-    verify_multi_usage(&env, &access_counts.borrow())?;
+    verify_multi_usage(&env, &access_counts.borrow(), input_variables.len())?;
 
     let cfg_rule = CfgRule {
         name: ast.name.as_str().into(),
@@ -130,11 +130,12 @@ impl<'a> Env<'a> {
 fn verify_multi_usage(
     env: &Env<'_>,
     access_counts: &HashMap<usize, usize>,
+    input_variables_len: usize,
 ) -> Result<(), CompileError> {
 
     let mut single_use = Vec::new();
     for (binding, count) in access_counts {
-        if *count == 1 {
+        if *count == 1 && !(0..input_variables_len).contains(binding) {
             if let Some(name) = env.binding_name(*binding) {
                 single_use.push(name.into());
             }
@@ -747,13 +748,13 @@ fn named_new_binding(
     position: &Span<'_>,
 ) -> Result<usize, CompileError> {
     if let Some(name) = variable.as_str() {
-        if let Some(binding) = env.find(name) {
-            Ok(binding)
-        } else {
+        if let Some(_) = env.find(name) {
             Err(CompileError::IllegalReuse {
                 line: position.location_line(),
                 name: name.into(),
             })
+        } else {
+            Ok(env.bind(name))
         }
     } else {
         Err(CompileError::IllegalWildcard { line: position.location_line() })

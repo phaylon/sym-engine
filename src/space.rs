@@ -395,6 +395,14 @@ impl<'a> AttributesMut<'a> {
         }
     }
 
+    pub fn remove_all_named(&mut self, name: &str) -> Vec<Value> {
+        let mut values = Vec::new();
+        while let Some((_, value)) = self.remove_first_named(name) {
+            values.push(value);
+        }
+        values
+    }
+
     pub fn retain<F>(&mut self, mut should_retain: F) -> usize
     where
         F: FnMut(&Symbol, &Value) -> bool,

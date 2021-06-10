@@ -2,7 +2,7 @@
 use std::sync::{Arc};
 use std::path::{Path};
 use std::io::{Error as IoError};
-use crate::{parser, compiler, runtime, Id, Space, Value};
+use crate::{parser, compiler, runtime, Id, Value, Access};
 
 pub struct System {
     name: Arc<str>,
@@ -20,7 +20,9 @@ pub enum SystemError {
 
 #[derive(Debug, Clone)]
 pub enum RuntimeError {
-    Stopped,
+    Stopped {
+        count: u64,
+    },
     InvalidInputArgumentLen {
         expected: usize,
         received: usize,
@@ -100,7 +102,7 @@ impl System {
 
     pub fn run_to_first(
         &self,
-        space: &mut Space,
+        space: &mut dyn Access,
         inputs: &[Id],
     ) -> Result<Option<Arc<str>>, RuntimeError> {
         let mut bindings = self.make_bindings_storage(inputs)?;
@@ -115,7 +117,7 @@ impl System {
 
     pub fn run_rule_saturation(
         &self,
-        space: &mut Space,
+        space: &mut dyn Access,
         inputs: &[Id],
     ) -> Result<u64, RuntimeError> {
         self.run_rule_saturation_with_control(
@@ -127,12 +129,12 @@ impl System {
 
     pub fn run_rule_saturation_with_control<F>(
         &self,
-        space: &mut Space,
+        space: &mut dyn Access,
         inputs: &[Id],
         mut control: F,
     ) -> Result<u64, RuntimeError>
     where
-        F: FnMut(&Arc<str>, &Space, u64) -> RuntimeControl,
+        F: FnMut(&Arc<str>, &dyn Access, u64) -> RuntimeControl,
     {
         let mut run_count = 0;
         let mut bindings = self.make_bindings_storage(inputs)?;
@@ -146,7 +148,7 @@ impl System {
                             continue 'current_rule;
                         },
                         RuntimeControl::Stop => {
-                            return Err(RuntimeError::Stopped);
+                            return Err(RuntimeError::Stopped { count: run_count });
                         },
                     }
                 }
@@ -158,7 +160,7 @@ impl System {
 
     pub fn run_saturation(
         &self,
-        space: &mut Space,
+        space: &mut dyn Access,
         inputs: &[Id],
     ) -> Result<u64, RuntimeError> {
         self.run_saturation_with_control(
@@ -170,26 +172,26 @@ impl System {
 
     pub fn run_saturation_with_control<F>(
         &self,
-        space: &mut Space,
+        space: &mut dyn Access,
         inputs: &[Id],
         mut control: F,
     ) -> Result<u64, RuntimeError>
     where
-        F: FnMut(&Arc<str>, &Space, u64) -> RuntimeControl,
+        F: FnMut(&Arc<str>, &dyn Access, u64) -> RuntimeControl,
     {
         let mut run_count = 0;
         let mut bindings = self.make_bindings_storage(inputs)?;
         'firing: loop {
-            run_count += 1;
             for rule in &self.rules {
                 let rule_fired = runtime::attempt_rule_firing(rule, space, &mut bindings);
                 if rule_fired {
+                    run_count += 1;
                     match control(rule.name(), space, run_count) {
                         RuntimeControl::Continue => {
                             continue 'firing;
                         },
                         RuntimeControl::Stop => {
-                            return Err(RuntimeError::Stopped);
+                            return Err(RuntimeError::Stopped { count: run_count });
                         },
                     }
                 }

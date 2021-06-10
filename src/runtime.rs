@@ -1,7 +1,7 @@
 
 use std::cmp::{Ordering};
 use num_traits::{ToPrimitive};
-use crate::{Space, Value, Access, Symbol, AttributesIter};
+use crate::{Value, Access, Symbol, AttributesIter};
 use crate::data::{CompareOp, ArithBinOp};
 use crate::compiler::{
     CompiledRule,
@@ -15,7 +15,7 @@ use crate::compiler::{
 
 pub fn attempt_rule_firing(
     rule: &CompiledRule,
-    space: &mut Space,
+    space: &mut dyn Access,
     bindings: &mut [Value],
 ) -> bool {
     space.transaction(&mut |mut tx| {
@@ -162,7 +162,7 @@ fn find_bindings(
                         continue_op_index: op_index + 1,
                         iter,
                     });
-                    Flow::NextOp
+                    Flow::NextBranch
                 } else {
                     Flow::NextBranch
                 }

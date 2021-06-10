@@ -27,6 +27,7 @@ pub use system::{
     System,
     SystemLoader,
     SystemError,
+    RuntimeControl,
     RuntimeError,
     LoadError,
     FileLoadError,
