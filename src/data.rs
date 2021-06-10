@@ -14,45 +14,6 @@ macro_rules! impl_from {
     }
 }
 
-macro_rules! fns_variant {
-    (
-        $value:ty, $variant:ident, $output:ty,
-        $is_variant:ident,
-        $as_variant:ident,
-        $to_variant:ident,
-        $into_variant:ident
-    ) => {
-
-        pub fn $is_variant(&self) -> bool {
-            match *self {
-                Self::$variant(_) => true,
-                _ => false,
-            }
-        }
-
-        pub fn $as_variant(&self) -> Option<&$output> {
-            match *self {
-                Self::$variant(ref value) => Some(value),
-                _ => None,
-            }
-        }
-
-        pub fn $to_variant(&self) -> Option<$output> {
-            match *self {
-                Self::$variant(ref value) => Some(value.clone()),
-                _ => None,
-            }
-        }
-
-        pub fn $into_variant(self) -> Option<$output> {
-            match self {
-                Self::$variant(value) => Some(value),
-                _ => None,
-            }
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ArithBinOp {
     Add,
@@ -82,11 +43,62 @@ pub enum Value {
 
 impl Value {
 
-    fns_variant!(Value, Object, Id, is_object, as_object, to_object, into_object);
-    fns_variant!(Value, Symbol, Symbol, is_symbol, as_symbol, to_symbol, into_symbol);
-    fns_variant!(Value, Int, i64, is_int, as_int, to_int, into_int);
-    fns_variant!(Value, Float, f64, is_float, as_float, to_float, into_float);
-    fns_variant!(Value, Tuple, Tuple, is_tuple, as_tuple, to_tuple, into_tuple);
+    pub fn object(&self) -> Option<Id> {
+        match *self {
+            Self::Object(id) => Some(id),
+            _ => None,
+        }
+    }
+
+    pub fn symbol(&self) -> Option<&Symbol> {
+        match *self {
+            Self::Symbol(ref symbol) => Some(symbol),
+            _ => None,
+        }
+    }
+
+    pub fn to_symbol(&self) -> Option<Symbol> {
+        self.symbol().cloned()
+    }
+
+    pub fn into_symbol(self) -> Option<Symbol> {
+        match self {
+            Self::Symbol(symbol) => Some(symbol),
+            _ => None,
+        }
+    }
+
+    pub fn int(&self) -> Option<i64> {
+        match *self {
+            Self::Int(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn float(&self) -> Option<f64> {
+        match *self {
+            Self::Float(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn tuple(&self) -> Option<&Tuple> {
+        match *self {
+            Self::Tuple(ref values) => Some(values),
+            _ => None,
+        }
+    }
+
+    pub fn to_tuple(&self) -> Option<Tuple> {
+        self.tuple().cloned()
+    }
+
+    pub fn into_tuple(self) -> Option<Tuple> {
+        match self {
+            Self::Tuple(values) => Some(values),
+            _ => None,
+        }
+    }
 }
 
 impl_from!(Value, Id, Value::Object);
@@ -158,33 +170,33 @@ impl_match_value!(Value, |cmp, val| {
 });
 
 impl_match_value!(Id, |cmp, val| {
-    val.to_object().map(|id| id == *cmp).unwrap_or(false)
+    val.object().map(|id| id == *cmp).unwrap_or(false)
 });
 
 impl_match_value!(Symbol, |cmp, val| {
-    val.as_symbol().map(|sym| sym == cmp).unwrap_or(false)
+    val.symbol().map(|sym| sym == cmp).unwrap_or(false)
 });
 impl_match_value!(str, |cmp, val| {
-    val.as_symbol().map(|sym| sym.as_ref() == cmp).unwrap_or(false)
+    val.symbol().map(|sym| sym.as_ref() == cmp).unwrap_or(false)
 });
 
 impl_match_value!(i64, |cmp, val| {
-    val.to_int().map(|val| val == *cmp).unwrap_or(false)
+    val.int().map(|val| val == *cmp).unwrap_or(false)
 });
 impl_match_value!(i32, |cmp, val| {
-    val.to_int().map(|val| val == (*cmp).into()).unwrap_or(false)
+    val.int().map(|val| val == (*cmp).into()).unwrap_or(false)
 });
 
 impl_match_value!(f64, |cmp, val| {
-    val.to_float().map(|val| val == *cmp).unwrap_or(false)
+    val.float().map(|val| val == *cmp).unwrap_or(false)
 });
 impl_match_value!(f32, |cmp, val| {
-    val.to_float().map(|val| val == (*cmp).into()).unwrap_or(false)
+    val.float().map(|val| val == (*cmp).into()).unwrap_or(false)
 });
 
 impl_match_value!(Tuple, |cmp, val| {
-    val.as_tuple().map(|tup| tup == cmp).unwrap_or(false)
+    val.tuple().map(|tup| tup == cmp).unwrap_or(false)
 });
 impl_match_value!([Value], |cmp, val| {
-    val.as_tuple().map(|tup| tup.as_ref() == cmp).unwrap_or(false)
+    val.tuple().map(|tup| tup.as_ref() == cmp).unwrap_or(false)
 });

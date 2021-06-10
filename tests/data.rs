@@ -4,16 +4,16 @@ use sym_engine::*;
 #[test]
 fn from() {
 
-    assert_eq!(Value::from(23i32).to_int(), Some(23));
-    assert_eq!(Value::from(23i64).to_int(), Some(23));
+    assert_eq!(Value::from(23i32).int(), Some(23));
+    assert_eq!(Value::from(23i64).int(), Some(23));
 
-    assert!(Value::from(23.0f32).to_float().is_some());
-    assert!(Value::from(23.0f64).to_float().is_some());
+    assert!(Value::from(23.0f32).float().is_some());
+    assert!(Value::from(23.0f64).float().is_some());
 
     let space = Space::new();
     let id = space.create_id();
 
-    assert_eq!(Value::from(id).to_object(), Some(id));
+    assert_eq!(Value::from(id).object(), Some(id));
     assert_eq!(Value::from("foo").to_symbol(), Some(Symbol::from("foo")));
     assert_eq!(Value::from(Symbol::from("foo")).to_symbol(), Some(Symbol::from("foo")));
 

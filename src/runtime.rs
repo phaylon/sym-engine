@@ -53,7 +53,7 @@ fn apply_changes(
                 bindings[*binding] = Value::Tuple(values);
             },
             OpApply::AddBindingAttribute { binding, attribute, value_binding } => {
-                if let Some(id) = bindings[*binding].to_object() {
+                if let Some(id) = bindings[*binding].object() {
                     space.attributes_mut(id)
                         .add(attribute.clone(), bindings[*value_binding].clone());
                 } else {
@@ -61,7 +61,7 @@ fn apply_changes(
                 }
             },
             OpApply::RemoveBindingAttribute { binding, attribute, value_binding } => {
-                if let Some(id) = bindings[*binding].to_object() {
+                if let Some(id) = bindings[*binding].object() {
                     let removed = space.attributes_mut(id)
                         .remove_first(attribute, &bindings[*value_binding]);
                     if removed.is_none() {
@@ -72,7 +72,7 @@ fn apply_changes(
                 }
             },
             OpApply::AddValueAttribute { binding, attribute, value } => {
-                if let Some(id) = bindings[*binding].to_object() {
+                if let Some(id) = bindings[*binding].object() {
                     space.attributes_mut(id)
                         .add(attribute.clone(), value.clone());
                 } else {
@@ -80,7 +80,7 @@ fn apply_changes(
                 }
             },
             OpApply::RemoveValueAttribute { binding, attribute, value } => {
-                if let Some(id) = bindings[*binding].to_object() {
+                if let Some(id) = bindings[*binding].object() {
                     let removed = space.attributes_mut(id)
                         .remove_first(attribute, value);
                     if removed.is_none() {
@@ -107,14 +107,14 @@ fn find_bindings(
     loop {
         let flow = match &ops[op_index] {
             Op::AssertObjectBinding { binding } => {
-                if bindings[*binding].is_object() {
+                if bindings[*binding].object().is_some() {
                     Flow::NextOp
                 } else {
                     Flow::NextBranch
                 }
             },
             Op::RequireAttributeBinding { binding, attribute, value_binding } => {
-                if let Some(id) = bindings[*binding].to_object() {
+                if let Some(id) = bindings[*binding].object() {
                     if space.attributes(id).has(attribute.as_ref(), &bindings[*value_binding]) {
                         Flow::NextOp
                     } else {
@@ -125,7 +125,7 @@ fn find_bindings(
                 }
             },
             Op::RequireAttributeValue { binding, attribute, value } => {
-                if let Some(id) = bindings[*binding].to_object() {
+                if let Some(id) = bindings[*binding].object() {
                     if space.attributes(id).has(attribute.as_ref(), value) {
                         Flow::NextOp
                     } else {
@@ -136,7 +136,7 @@ fn find_bindings(
                 }
             },
             Op::RequireAttribute { binding, attribute } => {
-                if let Some(id) = bindings[*binding].to_object() {
+                if let Some(id) = bindings[*binding].object() {
                     if space.attributes(id).has_named(attribute.as_ref()) {
                         Flow::NextOp
                     } else {
@@ -154,7 +154,7 @@ fn find_bindings(
                 }
             },
             Op::SearchAttributeBinding { binding, attribute, value_binding } => {
-                if let Some(id) = bindings[*binding].to_object() {
+                if let Some(id) = bindings[*binding].object() {
                     let iter = space.attributes(id).iter();
                     frames.push(Frame::Iter {
                         attribute: attribute.clone(),
@@ -168,7 +168,7 @@ fn find_bindings(
                 }
             }
             Op::UnpackTupleBinding { binding, values } => {
-                if let Some(tuple) = bindings[*binding].as_tuple().cloned() {
+                if let Some(tuple) = bindings[*binding].tuple().cloned() {
                     if tuple.len() == values.len() {
                         let matched = tuple.iter().zip(values.iter())
                             .all(|(value, expected)| {
