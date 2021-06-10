@@ -79,7 +79,6 @@ pub fn optimize(mut rule: CfgRule, input_bindings_len: usize) -> Vec<Op> {
 }
 
 fn assemble_ops(select: &[CfgOpSelect], prev: &OpState, seq: &mut Sequence) -> Option<OpState> {
-
     let mut branches = Vec::new();
     branches.push((prev.clone(), select.to_vec()));
 

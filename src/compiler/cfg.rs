@@ -272,7 +272,7 @@ fn compile_apply_remove(
             Ok(())
         },
         ast::ValueSpecKind::Variable(variable) => {
-            let value_binding = named_binding(env, variable, &spec.position)?;
+            let value_binding = existing_named_binding(env, variable, &spec.position)?;
             ops.push(OpApply::RemoveBindingAttribute {
                 binding,
                 attribute: spec.attribute_spec.attribute.as_str().into(),
@@ -361,6 +361,27 @@ fn compile_apply_tuple(
     Ok(())
 }
 
+fn existing_named_binding_with_name(
+    env: &mut Env<'_>,
+    variable: &ast::Variable<'_>,
+    position: &Span<'_>,
+) -> Result<(usize, Arc<str>), CompileError> {
+    if let Some(name) = variable.as_str() {
+        if let Some(binding) = env.find(name) {
+            Ok((binding, name.into()))
+        } else {
+            Err(CompileError::IllegalNewBinding {
+                line: position.location_line(),
+                name: name.into(),
+            })
+        }
+    } else {
+        Err(CompileError::IllegalWildcard {
+            line: position.location_line(),
+        })
+    }
+}
+
 fn existing_named_binding(
     env: &mut Env<'_>,
     variable: &ast::Variable<'_>,
@@ -428,7 +449,7 @@ fn compile_rule_select(
             )
         },
         ast::RuleSelect::BindingAttribute(spec) => {
-            let binding = named_binding(env, &spec.variable, &spec.position)?;
+            let binding = existing_named_binding(env, &spec.variable, &spec.position)?;
             compile_select_attribute(
                 env,
                 binding,
@@ -473,7 +494,7 @@ fn compile_calculation(
         ast::Calculation::Float(value) =>
             Ok(Calculation::Value(Value::from(*value))),
         ast::Calculation::Variable(variable) =>
-            Ok(Calculation::Binding(named_binding(env, variable, position)?)),
+            Ok(Calculation::Binding(existing_named_binding(env, variable, position)?)),
         ast::Calculation::BimOp(op, left, right) =>
             Ok(Calculation::BinOp(
                 *op,
@@ -492,7 +513,7 @@ fn compile_comparable(
         ast::Comparable::Int(value) => CompareValue::Value(Value::from(*value)),
         ast::Comparable::Float(value) => CompareValue::Value(Value::from(*value)),
         ast::Comparable::Variable(variable) => {
-            CompareValue::Binding(named_binding(env, variable, position)?)
+            CompareValue::Binding(existing_named_binding(env, variable, position)?)
         },
     })
 }
@@ -517,7 +538,7 @@ fn compile_select_toplevel_binding(
     value_spec: &ast::ValueSpec<'_>,
     ops: &mut Vec<CfgOpSelect>,
 ) -> Result<(), CompileError> {
-    let (binding, variable_name) = named_binding_with_name(env, variable, position)?;
+    let (binding, variable_name) = existing_named_binding_with_name(env, variable, position)?;
     match &value_spec.kind {
         ast::ValueSpecKind::Literal(literal) => {
             ops.push(CfgOpSelect::CompareBinding {
@@ -686,7 +707,7 @@ fn compile_select_enum(
                 cfg_enum_items.push(EnumOption::Value(literal.to_value()));
             },
             ast::Enumerable::Variable(variable) => {
-                let item_binding = named_binding(env, variable, position)?;
+                let item_binding = existing_named_binding(env, variable, position)?;
                 cfg_enum_items.push(EnumOption::Binding(item_binding));
             },
         }
@@ -730,18 +751,6 @@ fn nameable_binding(
     }
 }
 
-fn named_binding(
-    env: &mut Env<'_>,
-    variable: &ast::Variable<'_>,
-    position: &Span<'_>,
-) -> Result<usize, CompileError> {
-    if let Some(name) = variable.as_str() {
-        Ok(env.bind(name))
-    } else {
-        Err(CompileError::IllegalWildcard { line: position.location_line() })
-    }
-}
-
 fn named_new_binding(
     env: &mut Env<'_>,
     variable: &ast::Variable<'_>,
@@ -756,18 +765,6 @@ fn named_new_binding(
         } else {
             Ok(env.bind(name))
         }
-    } else {
-        Err(CompileError::IllegalWildcard { line: position.location_line() })
-    }
-}
-
-fn named_binding_with_name(
-    env: &mut Env<'_>,
-    variable: &ast::Variable<'_>,
-    position: &Span<'_>,
-) -> Result<(usize, Arc<str>), CompileError> {
-    if let Some(name) = variable.as_str() {
-        Ok((env.bind(name), name.into()))
     } else {
         Err(CompileError::IllegalWildcard { line: position.location_line() })
     }

@@ -1,6 +1,20 @@
 
 use sym_engine::*;
 
+#[track_caller]
+fn test_package(rules: &str) -> (System, Space, Id, Id) {
+
+    let mut system = System::new("test", &["A", "B"]).unwrap();
+    let mut loader = SystemLoader::new(vec![&mut system]);
+    loader.load_str(rules).expect("rules load successful");
+
+    let mut space = Space::new();
+    let root_a = space.create_root_id();
+    let root_b = space.create_root_id();
+
+    (system, space, root_a, root_b)
+}
+
 #[test]
 fn input_variable_verification() {
 
@@ -24,20 +38,6 @@ fn input_variable_verification() {
         System::new("test", &["X"]).unwrap().run_to_first(&mut space, &[]),
         Err(RuntimeError::InvalidInputArgumentLen { expected: 1, received: 0 }),
     ));
-}
-
-#[track_caller]
-fn test_package(rules: &str) -> (System, Space, Id, Id) {
-
-    let mut system = System::new("test", &["A", "B"]).unwrap();
-    let mut loader = SystemLoader::new(vec![&mut system]);
-    loader.load_str(rules).expect("rules load successful");
-
-    let mut space = Space::new();
-    let root_a = space.create_root_id();
-    let root_b = space.create_root_id();
-
-    (system, space, root_a, root_b)
 }
 
 #[test]
