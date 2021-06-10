@@ -198,6 +198,20 @@ mod attributes {
     }
 
     #[test]
+    fn remove_all_named() {
+        let mut space = Space::new();
+        let obj = space.create_id();
+        space.attributes_mut(obj).apply(|attrs| {
+            attrs.add("foo", 23);
+            attrs.add("foo", 42);
+        });
+        let values = space.attributes_mut(obj).remove_all_named("foo");
+        assert!(values.contains(&Value::Int(23)));
+        assert!(values.contains(&Value::Int(42)));
+        assert!(space.attributes(obj).is_empty());
+    }
+
+    #[test]
     fn first_named() {
         let mut space = Space::new();
         let obj = space.create_id();
