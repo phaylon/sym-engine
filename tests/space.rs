@@ -84,8 +84,7 @@ mod attributes {
             attrs.add("foo", 23);
         });
         assert_eq!(space.attributes(obj).len(), 2);
-        let (name, value) = space.attributes_mut(obj).remove_first("foo", &23).unwrap();
-        assert_eq!(name.as_ref(), "foo");
+        let value = space.attributes_mut(obj).remove_first("foo", &23).unwrap();
         assert_eq!(value, 23.into());
         assert_eq!(space.attributes(obj).len(), 1);
         assert!(space.attributes(obj).has("foo", &23));
@@ -100,8 +99,7 @@ mod attributes {
             attrs.add("foo", 23);
         });
         assert_eq!(space.attributes(obj).len(), 2);
-        let (name, value) = space.attributes_mut(obj).remove_first_named("foo").unwrap();
-        assert_eq!(name.as_ref(), "foo");
+        let value = space.attributes_mut(obj).remove_first_named("foo").unwrap();
         assert_eq!(value, 23.into());
         assert_eq!(space.attributes(obj).len(), 1);
         assert!(space.attributes(obj).has("foo", &23));

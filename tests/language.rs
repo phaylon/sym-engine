@@ -7,7 +7,7 @@ fn test_run(space: &mut Space, root: Id, rules: &str) -> Option<Value> {
     let mut loader = SystemLoader::new(vec![&mut system]);
     loader.load_str(rules).expect("loaded successfully");
     system.run_to_first(space, &[root]).expect("run successfully");
-    space.attributes_mut(root).remove_first_named("result").map(|(_, val)| val)
+    space.attributes_mut(root).remove_first_named("result")
 }
 
 fn load_error(rules: &str) -> Option<LoadError> {
@@ -217,7 +217,7 @@ fn apply_add_attributes() {
     "), Some(Value::Int(99)));
     assert_matches!(
         space.attributes_mut(root).remove_first_named("value"),
-        Some((_, Value::Int(23)))
+        Some(Value::Int(23))
     );
     assert!(!space.attributes(root).has_named("value"));
 
@@ -235,7 +235,7 @@ fn apply_add_attributes() {
             + $ROOT.nested: { x: 2, x: 3 },
         }
     "), Some(Value::Int(23)));
-    let (_, value) = space.attributes_mut(root).remove_first_named("nested").unwrap();
+    let value = space.attributes_mut(root).remove_first_named("nested").unwrap();
     let nested = value.object().unwrap();
     assert!(space.attributes(nested).has("x", &2));
     assert!(space.attributes(nested).has("x", &3));
@@ -248,11 +248,11 @@ fn apply_add_attributes() {
             + $ROOT.new: $new,
         }
     "), Some(Value::Int(23)));
-    let (_, value) = space.attributes_mut(root).remove_first_named("nested").unwrap();
+    let value = space.attributes_mut(root).remove_first_named("nested").unwrap();
     let nested = value.object().unwrap();
     assert!(space.attributes(nested).has("x", &2));
     assert!(space.attributes(nested).has("x", &3));
-    let (_, value) = space.attributes_mut(root).remove_first_named("new").unwrap();
+    let value = space.attributes_mut(root).remove_first_named("new").unwrap();
     let new = value.object().unwrap();
     assert_eq!(nested, new);
 }

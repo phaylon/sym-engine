@@ -336,7 +336,7 @@ impl<'a> AttributesMut<'a> {
         self.attributes.push((name.into(), value.into()));
     }
 
-    pub fn remove_first<M>(&mut self, name: &str, value: &M) -> Option<(Symbol, Value)>
+    pub fn remove_first<M>(&mut self, name: &str, value: &M) -> Option<Value>
     where
         M: MatchValue + ?Sized,
     {
@@ -344,18 +344,18 @@ impl<'a> AttributesMut<'a> {
             ex_name.as_ref() == name && value.match_value(ex_value)
         });
         if let Some(index) = maybe_index {
-            Some(self.attributes.remove(index))
+            Some(self.attributes.remove(index).1)
         } else {
             None
         }
     }
 
-    pub fn remove_first_named(&mut self, name: &str) -> Option<(Symbol, Value)> {
+    pub fn remove_first_named(&mut self, name: &str) -> Option<Value> {
         let maybe_index = self.attributes
             .iter()
             .position(|(ex_name, _)| ex_name.as_ref() == name);
         if let Some(index) = maybe_index {
-            Some(self.attributes.remove(index))
+            Some(self.attributes.remove(index).1)
         } else {
             None
         }
@@ -363,7 +363,7 @@ impl<'a> AttributesMut<'a> {
 
     pub fn remove_all_named(&mut self, name: &str) -> Vec<Value> {
         let mut values = Vec::new();
-        while let Some((_, value)) = self.remove_first_named(name) {
+        while let Some(value) = self.remove_first_named(name) {
             values.push(value);
         }
         values
