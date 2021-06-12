@@ -451,10 +451,12 @@ fn select_tuples() {
     let tuple_a = Value::from(vec![Value::from("foo"), Value::from(13)]);
     let tuple_b = Value::from(vec![Value::from("foo"), Value::from(23), Value::from(42)]);
     let tuple_c = Value::from(vec![Value::from("bar"), Value::from(42)]);
+    let nest = Value::from(vec![tuple_a.clone(), tuple_c.clone()]);
     let root = space.create_object().apply(|attrs| {
         attrs.add("tuple", tuple_a);
         attrs.add("tuple", tuple_b);
         attrs.add("tuple", tuple_c);
+        attrs.add("nested", nest);
         attrs.object()
     });
 
@@ -484,6 +486,15 @@ fn select_tuples() {
             + $ROOT.result: $value,
         }
     "), Some(Value::Int(13)));
+
+    // nesting
+    assert_matches!(test_run(&mut space, root, "
+        rule test:ok {
+            $ROOT.nested: [[foo, $], [$, $value]],
+        } do {
+            + $ROOT.result: $value,
+        }
+    "), Some(Value::Int(42)));
 }
 
 #[test]
@@ -539,6 +550,7 @@ fn apply_add_tuple() {
     let root = space.create_id();
     space.attributes_mut(root).add("value", 23);
 
+    // flat
     assert_matches!(test_run(&mut space, root, "
         rule test:ok {
             $ROOT.value: $value,
@@ -546,6 +558,20 @@ fn apply_add_tuple() {
             + $ROOT.result: [foo, $value],
         }
     "), Some(found) if found == tuple);
+
+    // nested
+    let nested_tuple = Value::from(vec![
+        Value::from("foo"),
+        Value::from(vec![
+            Value::from("bar"),
+            Value::from(23),
+        ]),
+    ]);
+    assert_matches!(test_run(&mut space, root, "
+        rule test:ok {} do {
+            + $ROOT.result: [foo, [bar, 23]],
+        }
+    "), Some(found) if found == nested_tuple);
 }
 
 #[test]
