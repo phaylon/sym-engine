@@ -3,6 +3,7 @@ name = "sym-engine"
 version = "0.1.0"
 authors = ["Robert Sedlacek <rs@474.at>"]
 edition = "2018"
+license = "MIT"
 
 [dependencies]
 fnv = "1.0.7"
