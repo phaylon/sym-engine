@@ -225,30 +225,36 @@ fn find_bindings(
             Op::Compare { operator, left, right } => {
                 let left_value = left.resolve(bindings);
                 let right_value = right.resolve(bindings);
-                let cmp = left_value.partial_cmp(right_value);
-                let matched = match cmp {
-                    Some(Ordering::Equal) => match operator {
-                        CompareOp::Equal | CompareOp::LessOrEqual | CompareOp::GreaterOrEqual
-                            => true,
-                        _ => false,
-                    },
-                    Some(Ordering::Less) => match operator {
-                        CompareOp::Less | CompareOp::LessOrEqual | CompareOp::NotEqual
-                            => true,
-                        _ => false,
-                    },
-                    Some(Ordering::Greater) => match operator {
-                        CompareOp::Greater | CompareOp::GreaterOrEqual | CompareOp::NotEqual
-                            => true,
-                        _ => false,
-                    },
-                    None => match operator {
-                        CompareOp::NotEqual => true,
-                        _ => false,
-                    },
-                };
-                if matched {
-                    Flow::NextOp
+                if let Some((left_value, right_value))
+                    = unify_numeric_types(left_value.clone(), right_value.clone())
+                {
+                    let cmp = left_value.partial_cmp(&right_value);
+                    let matched = match cmp {
+                        Some(Ordering::Equal) => match operator {
+                            CompareOp::Equal | CompareOp::LessOrEqual | CompareOp::GreaterOrEqual
+                                => true,
+                            _ => false,
+                        },
+                        Some(Ordering::Less) => match operator {
+                            CompareOp::Less | CompareOp::LessOrEqual | CompareOp::NotEqual
+                                => true,
+                            _ => false,
+                        },
+                        Some(Ordering::Greater) => match operator {
+                            CompareOp::Greater | CompareOp::GreaterOrEqual | CompareOp::NotEqual
+                                => true,
+                            _ => false,
+                        },
+                        None => match operator {
+                            CompareOp::NotEqual => true,
+                            _ => false,
+                        },
+                    };
+                    if matched {
+                        Flow::NextOp
+                    } else {
+                        Flow::NextBranch
+                    }
                 } else {
                     Flow::NextBranch
                 }

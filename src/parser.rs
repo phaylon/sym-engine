@@ -177,9 +177,9 @@ fn int(input: Span<'_>) -> Parsed<'_, i64> {
         nc::recognize(nc::pair(
             nc::preceded(
                 nc::opt(nc::char('-')),
-                nc::many1(nc::digit1),
+                nc::many1_count(nc::digit1),
             ),
-            nc::many0(nc::pair(nc::char('_'), nc::many1(nc::digit1))),
+            nc::many0_count(nc::pair(nc::char('_'), nc::many1_count(nc::digit1))),
         )),
         |span: Span<'_>| {
             let value = span.fragment();
@@ -195,17 +195,15 @@ fn int(input: Span<'_>) -> Parsed<'_, i64> {
 fn float(input: Span<'_>) -> Parsed<'_, f64> {
     nc::map_opt(
         nc::recognize(nc::tuple((
-            nc::preceded(
-                nc::opt(nc::char('-')),
-                nc::pair(
-                    nc::many1(nc::digit1),
-                    nc::many0(nc::pair(nc::char('_'), nc::many1(nc::digit1))),
-                ),
+            nc::opt(nc::char('-')),
+            nc::pair(
+                nc::many1_count(nc::digit1),
+                nc::many0_count(nc::pair(nc::char('_'), nc::many1_count(nc::digit1))),
             ),
             nc::char('.'),
             nc::cut(nc::pair(
-                nc::many1(nc::digit1),
-                nc::many0(nc::pair(nc::char('_'), nc::many1(nc::digit1))),
+                nc::many1_count(nc::digit1),
+                nc::many0_count(nc::pair(nc::char('_'), nc::many1_count(nc::digit1))),
             )),
         ))),
         |span: Span<'_>| {
@@ -424,8 +422,8 @@ fn calculation_mul_div(input: Span<'_>) -> Parsed<'_, ast::Calculation<'_>> {
 
 fn calculation_terminal(input: Span<'_>) -> Parsed<'_, ast::Calculation<'_>> {
     nc::alt((
-        nc::map(int, ast::Calculation::Int),
         nc::map(float, ast::Calculation::Float),
+        nc::map(int, ast::Calculation::Int),
         nc::map(variable, ast::Calculation::Variable),
         delimited_cut(nc::char('('), wsc(calculation), nc::char(')')),
     ))(input)

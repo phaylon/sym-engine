@@ -730,6 +730,16 @@ fn math() {
             + $ROOT.result: $out,
         }
     "), Some(Value::Int(70)));
+
+    // int to float
+    assert_matches!(test_run(&mut space, root, "
+        rule test:ok {
+            $out
+            is (10.0 + 5) + (10 + 5.0),
+        } do {
+            + $ROOT.result: $out,
+        }
+    "), Some(Value::Float(value)) if value > 29.0 && value < 31.0);
 }
 
 #[test]
@@ -837,6 +847,22 @@ fn comparisons() {
             + $ROOT.result: $value,
         }
     "), Some(Value::Int(10)));
+
+    // int to float
+    assert_matches!(test_run(&mut space, root, "
+        rule test:ok {
+            10 > 5.0,
+        } do {
+            + $ROOT.result: 23,
+        }
+    "), Some(Value::Int(23)));
+    assert_matches!(test_run(&mut space, root, "
+        rule test:ok {
+            10.0 > 5,
+        } do {
+            + $ROOT.result: 23,
+        }
+    "), Some(Value::Int(23)));
 }
 
 #[test]
