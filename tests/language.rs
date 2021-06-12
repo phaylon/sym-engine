@@ -57,6 +57,11 @@ fn select_attributes() {
 
     // direct nested variable attribute
     assert_matches!(test_run(&mut space, root, "
+        rule test:err {
+            $ROOT.deep: { unknown: $ },
+        } do {
+            + $ROOT.result: wrong,
+        }
         rule test:ok {
             $ROOT.deep: { deep_value: $val },
         } do {
@@ -66,6 +71,11 @@ fn select_attributes() {
 
     // direct nested literal attribute
     assert_matches!(test_run(&mut space, root, "
+        rule test:err {
+            $ROOT.deep: { deep_value: 77 },
+        } do {
+            + $ROOT.result: wrong,
+        }
         rule test:ok {
             $ROOT.deep: { deep_value: 42 },
         } do {
@@ -94,6 +104,12 @@ fn select_attributes() {
 
     // toplevel binding object
     assert_matches!(test_run(&mut space, root, "
+        rule test:err {
+            $ROOT.deep: $obj,
+            $obj: { unknown: $ },
+        } do {
+            + $ROOT.result: wrong,
+        }
         rule test:ok {
             $ROOT.deep: $obj,
             $obj: { deep_value: $value },
@@ -145,6 +161,19 @@ fn apply_remove_attributes() {
         }
     "), Some(Value::Int(99)));
     assert!(!space.attributes(root).has_named("value"));
+
+    // failure to remove inhibits successful application
+    space.attributes_mut(root).add("target", 23);
+    assert_matches!(test_run(&mut space, root, "
+        rule test:ok {
+            $ROOT.target: 23,
+        } do {
+            + $ROOT.result: 99,
+            - $ROOT.target: 123,
+        }
+    "), None);
+    assert!(!space.attributes(root).has_named("value"));
+
 }
 
 #[test]
@@ -351,6 +380,15 @@ fn enums() {
             + $ROOT.result: 99,
         }
     "), Some(Value::Int(99)));
+
+    // no match
+    assert_matches!(test_run(&mut space, root, "
+        rule test:ok {
+            $ROOT.value: x | 123 | y,
+        } do {
+            + $ROOT.result: 99,
+        }
+    "), None);
 }
 
 #[test]
@@ -552,6 +590,15 @@ fn not_clauses() {
             + $ROOT.result: $value,
         }
     "), Some(Value::Int(33)));
+
+    // no match
+    assert_matches!(test_run(&mut space, root, "
+        rule test:ok {
+            not { $ROOT.search: $ },
+        } do {
+            + $ROOT.result: wrong,
+        }
+    "), None);
 }
 
 #[test]
