@@ -5,45 +5,17 @@ use std::fmt::{Debug};
 use fnv::{FnvHashMap};
 use crate::{Symbol, Value, MatchValue};
 
-static SPACE_ID_SEQUENCE: AtomicU64 = AtomicU64::new(1);
+static OBJECT_ID_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
 type ObjectData = FnvHashMap<Id, Vec<(Symbol, Value)>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Id {
-    space_id: NonZeroU64,
-    object_id: NonZeroU64,
-}
+pub struct Id(NonZeroU64);
 
 impl std::fmt::Display for Id {
 
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(fmt, "<{}/{}>", self.space_id, self.object_id)
-    }
-}
-
-#[derive(Debug)]
-struct Sequence {
-    space_id: NonZeroU64,
-    next_id: AtomicU64,
-}
-
-impl Sequence {
-
-    fn new(space_id: NonZeroU64) -> Self {
-        Self {
-            next_id: AtomicU64::new(1),
-            space_id,
-        }
-    }
-
-    fn next_id(&self) -> Id {
-        let object_id = NonZeroU64::new(self.next_id.fetch_add(1, Ordering::SeqCst))
-            .expect("available object id");
-        Id {
-            space_id: self.space_id,
-            object_id,
-        }
+        write!(fmt, "<{}>", self.0)
     }
 }
 
@@ -89,8 +61,6 @@ impl ObjectSet {
 
 #[derive(Debug)]
 pub struct Space {
-    space_id: NonZeroU64,
-    sequence: Sequence,
     root_objects: ObjectSet,
     objects: ObjectData,
 }
@@ -98,13 +68,7 @@ pub struct Space {
 impl Space {
 
     pub fn new() -> Self {
-        let space_id = SPACE_ID_SEQUENCE.fetch_add(1, Ordering::SeqCst);
-        let space_id = NonZeroU64::new(space_id)
-            .expect("available space id");
-        let sequence = Sequence::new(space_id);
         Self {
-            space_id,
-            sequence,
             root_objects: ObjectSet::new(),
             objects: ObjectData::default(),
         }
@@ -166,7 +130,9 @@ impl Space {
 impl Access for Space {
 
     fn create_id(&self) -> Id {
-        self.sequence.next_id()
+        let id = OBJECT_ID_SEQUENCE.fetch_add(1, Ordering::SeqCst);
+        let id = NonZeroU64::new(id).expect("available object id");
+        Id(id)
     }
 
     fn register_root(&mut self, object: Id) -> bool {
