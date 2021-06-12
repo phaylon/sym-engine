@@ -1,7 +1,7 @@
 
 use crate::{Symbol, Value};
 use crate::data::{CompareOp};
-use super::{EnumOption, Calculation, CompareValue};
+use super::{EnumOption, Calculation, CompareValue, Binding};
 
 #[derive(Debug, Clone)]
 pub enum Op {
@@ -14,54 +14,59 @@ pub enum Op {
         index: usize,
     },
     SearchAttributeBinding {
-        binding: usize,
+        binding: Binding,
         attribute: Symbol,
-        value_binding: usize,
+        value_binding: Binding,
     },
     RequireAttributeBinding {
-        binding: usize,
+        binding: Binding,
         attribute: Symbol,
-        value_binding: usize,
+        value_binding: Binding,
     },
     RequireAttributeValue {
-        binding: usize,
+        binding: Binding,
         attribute: Symbol,
         value: Value,
     },
     RequireAttribute {
-        binding: usize,
+        binding: Binding,
         attribute: Symbol,
     },
     AssertObjectBinding {
-        binding: usize,
+        binding: Binding,
     },
     CompareBinding {
-        binding: usize,
+        binding: Binding,
         value: Value,
     },
     UnpackTupleBinding {
-        binding: usize,
+        binding: Binding,
         values: Vec<TupleItem>,
     },
     MatchEnumBinding {
-        binding: usize,
+        binding: Binding,
         options: Vec<EnumOption>,
     },
     Calculation {
-        binding: usize,
+        binding: Binding,
         operation: Calculation,
     },
     Compare {
-        operator: CompareOp,
-        left: CompareValue,
-        right: CompareValue,
+        comparison: Box<Comparison>,
     },
+}
+
+#[derive(Debug, Clone)]
+pub struct Comparison {
+    pub operator: CompareOp,
+    pub left: CompareValue,
+    pub right: CompareValue,
 }
 
 #[derive(Debug, Clone)]
 pub enum TupleItem {
     Ignore,
-    Bind(usize),
-    CompareBinding(usize),
+    Bind(Binding),
+    CompareBinding(Binding),
     CompareValue(Value),
 }

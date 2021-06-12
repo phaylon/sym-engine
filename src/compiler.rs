@@ -1,5 +1,7 @@
 
 use std::sync::{Arc};
+use std::cell::{RefCell};
+use num_traits::{ToPrimitive};
 use crate::{ast, Value, Symbol};
 use crate::data::{ArithBinOp};
 
@@ -8,6 +10,47 @@ mod optimizer;
 mod ops;
 
 pub use ops::{Op, TupleItem};
+
+#[derive(Debug, Clone)]
+struct BindingSequence {
+    next: RefCell<u16>,
+}
+
+impl BindingSequence {
+
+    pub fn new() -> Self {
+        Self {
+            next: RefCell::new(0),
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        let next: u16 = *self.next.borrow();
+        next as usize
+    }
+
+    pub fn next(&self) -> Binding {
+        let mut counter = self.next.borrow_mut();
+        let index = *counter;
+        *counter = counter.checked_add(1).expect("exceeded maximum binding count");
+        Binding(index)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Binding(u16);
+
+impl Binding {
+
+    pub fn with_index(index: usize) -> Self {
+        let index: u16 = index.to_u16().expect("raw binding index within range");
+        Binding(index)
+    }
+
+    pub fn index(&self) -> usize {
+        self.0 as usize
+    }
+}
 
 #[derive(Debug)]
 pub struct CompiledRule {
@@ -89,13 +132,13 @@ pub fn compile(
 #[derive(Debug, Clone)]
 pub enum Calculation {
     Value(Value),
-    Binding(usize),
+    Binding(Binding),
     BinOp(ArithBinOp, Box<Calculation>, Box<Calculation>),
 }
 
 impl Calculation {
 
-    pub fn bindings(&self) -> Vec<usize> {
+    pub fn bindings(&self) -> Vec<Binding> {
         let mut bindings = Vec::new();
         self.for_each_binding(&mut |binding| bindings.push(binding));
         bindings
@@ -103,7 +146,7 @@ impl Calculation {
 
     pub fn for_each_binding<F>(&self, callback: &mut F)
     where
-        F: FnMut(usize),
+        F: FnMut(Binding),
     {
         match *self {
             Calculation::Value(_) => (),
@@ -118,13 +161,13 @@ impl Calculation {
 
 #[derive(Debug, Clone)]
 pub enum CompareValue {
-    Binding(usize),
+    Binding(Binding),
     Value(Value),
 }
 
 impl CompareValue {
 
-    pub fn to_binding(&self) -> Option<usize> {
+    pub fn to_binding(&self) -> Option<Binding> {
         match *self {
             Self::Binding(binding) => Some(binding),
             _ => None,
@@ -133,7 +176,7 @@ impl CompareValue {
 
     pub fn resolve<'a>(&'a self, bindings: &'a [Value]) -> &'a Value {
         match self {
-            CompareValue::Binding(binding) => &bindings[*binding],
+            CompareValue::Binding(binding) => &bindings[binding.index()],
             CompareValue::Value(value) => value,
         }
     }
@@ -141,13 +184,13 @@ impl CompareValue {
 
 #[derive(Debug, Clone)]
 pub enum EnumOption {
-    Binding(usize),
+    Binding(Binding),
     Value(Value),
 }
 
 impl EnumOption {
 
-    pub fn to_binding(&self) -> Option<usize> {
+    pub fn to_binding(&self) -> Option<Binding> {
         match *self {
             Self::Binding(binding) => Some(binding),
             _ => None,
@@ -158,36 +201,36 @@ impl EnumOption {
 #[derive(Debug, Clone)]
 pub enum OpenTupleItem {
     Ignore,
-    Binding(usize),
+    Binding(Binding),
     Compare(Value),
 }
 
 #[derive(Debug, Clone)]
 pub enum OpApply {
     CreateObject {
-        binding: usize,
+        binding: Binding,
     },
     CreateTuple {
-        binding: usize,
+        binding: Binding,
         items: Vec<ApplyTupleItem>,
     },
     AddBindingAttribute {
-        binding: usize,
+        binding: Binding,
         attribute: Symbol,
-        value_binding: usize,
+        value_binding: Binding,
     },
     RemoveBindingAttribute {
-        binding: usize,
+        binding: Binding,
         attribute: Symbol,
-        value_binding: usize,
+        value_binding: Binding,
     },
     AddValueAttribute {
-        binding: usize,
+        binding: Binding,
         attribute: Symbol,
         value: Value,
     },
     RemoveValueAttribute {
-        binding: usize,
+        binding: Binding,
         attribute: Symbol,
         value: Value,
     },
@@ -196,5 +239,5 @@ pub enum OpApply {
 #[derive(Debug, Clone)]
 pub enum ApplyTupleItem {
     Value(Value),
-    Binding(usize),
+    Binding(Binding),
 }

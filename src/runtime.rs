@@ -40,30 +40,30 @@ fn apply_changes(
         match op {
             OpApply::CreateObject { binding } => {
                 let id = space.create_id();
-                bindings[*binding] = Value::Object(id);
+                bindings[binding.index()] = Value::Object(id);
             },
             OpApply::CreateTuple { binding, items } => {
                 let values = items
                     .iter()
                     .map(|item| match item {
                         ApplyTupleItem::Value(value) => value.clone(),
-                        ApplyTupleItem::Binding(binding) => bindings[*binding].clone(),
+                        ApplyTupleItem::Binding(binding) => bindings[binding.index()].clone(),
                     })
                     .collect();
-                bindings[*binding] = Value::Tuple(values);
+                bindings[binding.index()] = Value::Tuple(values);
             },
             OpApply::AddBindingAttribute { binding, attribute, value_binding } => {
-                if let Some(id) = bindings[*binding].object() {
+                if let Some(id) = bindings[binding.index()].object() {
                     space.attributes_mut(id)
-                        .add(attribute.clone(), bindings[*value_binding].clone());
+                        .add(attribute.clone(), bindings[value_binding.index()].clone());
                 } else {
                     return false;
                 }
             },
             OpApply::RemoveBindingAttribute { binding, attribute, value_binding } => {
-                if let Some(id) = bindings[*binding].object() {
+                if let Some(id) = bindings[binding.index()].object() {
                     let removed = space.attributes_mut(id)
-                        .remove_first(attribute, &bindings[*value_binding]);
+                        .remove_first(attribute, &bindings[value_binding.index()]);
                     if removed.is_none() {
                         return false;
                     }
@@ -72,7 +72,7 @@ fn apply_changes(
                 }
             },
             OpApply::AddValueAttribute { binding, attribute, value } => {
-                if let Some(id) = bindings[*binding].object() {
+                if let Some(id) = bindings[binding.index()].object() {
                     space.attributes_mut(id)
                         .add(attribute.clone(), value.clone());
                 } else {
@@ -80,7 +80,7 @@ fn apply_changes(
                 }
             },
             OpApply::RemoveValueAttribute { binding, attribute, value } => {
-                if let Some(id) = bindings[*binding].object() {
+                if let Some(id) = bindings[binding.index()].object() {
                     let removed = space.attributes_mut(id)
                         .remove_first(attribute, value);
                     if removed.is_none() {
@@ -107,15 +107,17 @@ fn find_bindings(
     loop {
         let flow = match &ops[op_index] {
             Op::AssertObjectBinding { binding } => {
-                if bindings[*binding].object().is_some() {
+                if bindings[binding.index()].object().is_some() {
                     Flow::NextOp
                 } else {
                     Flow::NextBranch
                 }
             },
             Op::RequireAttributeBinding { binding, attribute, value_binding } => {
-                if let Some(id) = bindings[*binding].object() {
-                    if space.attributes(id).has(attribute.as_ref(), &bindings[*value_binding]) {
+                if let Some(id) = bindings[binding.index()].object() {
+                    if space.attributes(id)
+                        .has(attribute.as_ref(), &bindings[value_binding.index()])
+                    {
                         Flow::NextOp
                     } else {
                         Flow::NextBranch
@@ -125,7 +127,7 @@ fn find_bindings(
                 }
             },
             Op::RequireAttributeValue { binding, attribute, value } => {
-                if let Some(id) = bindings[*binding].object() {
+                if let Some(id) = bindings[binding.index()].object() {
                     if space.attributes(id).has(attribute.as_ref(), value) {
                         Flow::NextOp
                     } else {
@@ -136,7 +138,7 @@ fn find_bindings(
                 }
             },
             Op::RequireAttribute { binding, attribute } => {
-                if let Some(id) = bindings[*binding].object() {
+                if let Some(id) = bindings[binding.index()].object() {
                     if space.attributes(id).has_named(attribute.as_ref()) {
                         Flow::NextOp
                     } else {
@@ -147,18 +149,18 @@ fn find_bindings(
                 }
             },
             Op::CompareBinding { binding, value } => {
-                if &bindings[*binding] == value {
+                if &bindings[binding.index()] == value {
                     Flow::NextOp
                 } else {
                     Flow::NextBranch
                 }
             },
             Op::SearchAttributeBinding { binding, attribute, value_binding } => {
-                if let Some(id) = bindings[*binding].object() {
+                if let Some(id) = bindings[binding.index()].object() {
                     let iter = space.attributes(id).iter();
                     frames.push(Frame::Iter {
                         attribute: attribute.clone(),
-                        binding: *value_binding,
+                        binding: value_binding.index(),
                         continue_op_index: op_index + 1,
                         iter,
                     });
@@ -168,18 +170,18 @@ fn find_bindings(
                 }
             }
             Op::UnpackTupleBinding { binding, values } => {
-                if let Some(tuple) = bindings[*binding].tuple().cloned() {
+                if let Some(tuple) = bindings[binding.index()].tuple().cloned() {
                     if tuple.len() == values.len() {
                         let matched = tuple.iter().zip(values.iter())
                             .all(|(value, expected)| {
                                 match expected {
                                     TupleItem::Ignore => true,
                                     TupleItem::Bind(binding) => {
-                                        bindings[*binding] = value.clone();
+                                        bindings[binding.index()] = value.clone();
                                         true
                                     },
                                     TupleItem::CompareBinding(binding) => {
-                                        bindings[*binding] == *value
+                                        bindings[binding.index()] == *value
                                     },
                                     TupleItem::CompareValue(expected_value) => {
                                         expected_value == value
@@ -203,13 +205,13 @@ fn find_bindings(
                 'options: for option in options {
                     match option {
                         EnumOption::Binding(match_binding) => {
-                            if bindings[*binding] == bindings[*match_binding] {
+                            if bindings[binding.index()] == bindings[match_binding.index()] {
                                 matched = true;
                                 break 'options;
                             }
                         },
                         EnumOption::Value(value) => {
-                            if bindings[*binding] == *value {
+                            if bindings[binding.index()] == *value {
                                 matched = true;
                                 break 'options;
                             }
@@ -222,30 +224,30 @@ fn find_bindings(
                     Flow::NextBranch
                 }
             },
-            Op::Compare { operator, left, right } => {
-                let left_value = left.resolve(bindings);
-                let right_value = right.resolve(bindings);
+            Op::Compare { comparison } => {
+                let left_value = comparison.left.resolve(bindings);
+                let right_value = comparison.right.resolve(bindings);
                 if let Some((left_value, right_value))
                     = unify_numeric_types(left_value.clone(), right_value.clone())
                 {
                     let cmp = left_value.partial_cmp(&right_value);
                     let matched = match cmp {
-                        Some(Ordering::Equal) => match operator {
+                        Some(Ordering::Equal) => match comparison.operator {
                             CompareOp::Equal | CompareOp::LessOrEqual | CompareOp::GreaterOrEqual
                                 => true,
                             _ => false,
                         },
-                        Some(Ordering::Less) => match operator {
+                        Some(Ordering::Less) => match comparison.operator {
                             CompareOp::Less | CompareOp::LessOrEqual | CompareOp::NotEqual
                                 => true,
                             _ => false,
                         },
-                        Some(Ordering::Greater) => match operator {
+                        Some(Ordering::Greater) => match comparison.operator {
                             CompareOp::Greater | CompareOp::GreaterOrEqual | CompareOp::NotEqual
                                 => true,
                             _ => false,
                         },
-                        None => match operator {
+                        None => match comparison.operator {
                             CompareOp::NotEqual => true,
                             _ => false,
                         },
@@ -262,7 +264,7 @@ fn find_bindings(
             Op::Calculation { binding, operation } => {
                 match perform_calculation(bindings, operation) {
                     Some(value) => {
-                        bindings[*binding] = value;
+                        bindings[binding.index()] = value;
                         Flow::NextOp
                     },
                     None => {
@@ -333,7 +335,7 @@ fn find_bindings(
 fn perform_calculation(bindings: &[Value], calc: &Calculation) -> Option<Value> {
     match calc {
         Calculation::Value(value) => Some(value.clone()),
-        Calculation::Binding(binding) => Some(bindings[*binding].clone()),
+        Calculation::Binding(binding) => Some(bindings[binding.index()].clone()),
         Calculation::BinOp(op, left, right) => {
             let (left, right) = unify_numeric_types(
                 perform_calculation(bindings, left)?,

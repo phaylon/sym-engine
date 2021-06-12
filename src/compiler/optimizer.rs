@@ -3,7 +3,7 @@ use fnv::{FnvHashSet};
 use float_ord::{FloatOrd};
 use super::cfg::{CfgRule, CfgOpSelect};
 use super::ops::{Op};
-use super::{ops, OpenTupleItem, EnumOption};
+use super::{ops, OpenTupleItem, EnumOption, Binding};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct JumpIndex(usize);
@@ -70,7 +70,9 @@ pub fn optimize(mut rule: CfgRule, input_bindings_len: usize) -> Vec<Op> {
     eliminate_object_assertions(&mut rule.select);
 
     let mut sequence = Sequence::new();
-    let provided_bindings = (0..input_bindings_len).collect::<Vec<usize>>();
+    let provided_bindings = (0..input_bindings_len)
+        .map(Binding::with_index)
+        .collect::<Vec<Binding>>();
     let ops = assemble_ops(&rule.select, &OpState::new(&provided_bindings), &mut sequence);
 
     let mut ops = ops.expect("search op order solution").ops;
@@ -252,9 +254,11 @@ fn transform_op(op: &CfgOpSelect, prev: &OpState, seq: &mut Sequence) -> Option<
             ) {
                 Some(prev.advance(
                     Op::Compare {
-                        operator: *operator,
-                        left: left.clone(),
-                        right: right.clone(),
+                        comparison: Box::new(ops::Comparison {
+                            operator: *operator,
+                            left: left.clone(),
+                            right: right.clone(),
+                        }),
                     },
                     |cost| cost - 2.0,
                     empty(),
@@ -294,12 +298,12 @@ fn transform_op(op: &CfgOpSelect, prev: &OpState, seq: &mut Sequence) -> Option<
 struct OpState {
     ops: Vec<Op>,
     cost: f64,
-    provided: Vec<usize>,
+    provided: Vec<Binding>,
 }
 
 impl OpState {
 
-    fn new(provided: &[usize]) -> Self {
+    fn new(provided: &[Binding]) -> Self {
         Self {
             ops: Vec::new(),
             cost: 1000.0,
@@ -309,7 +313,7 @@ impl OpState {
 
     fn advance<I, C>(&self, op: Op, adjust_cost: C, new_bindings: I) -> Self
     where
-        I: Iterator<Item = usize>,
+        I: Iterator<Item = Binding>,
         C: FnOnce(f64) -> f64,
     {
         let mut ops = self.ops.clone();
@@ -327,13 +331,13 @@ impl OpState {
         Self { ops, provided, cost }
     }
 
-    fn bound(&self, binding: usize) -> bool {
+    fn bound(&self, binding: Binding) -> bool {
         self.provided.contains(&binding)
     }
 
     fn all_bound<I>(&self, mut bindings: I) -> bool
     where
-        I: Iterator<Item = usize>,
+        I: Iterator<Item = Binding>,
     {
         bindings.all(|binding| self.provided.contains(&binding))
     }

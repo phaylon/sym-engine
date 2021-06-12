@@ -1,6 +1,5 @@
 
 use std::sync::{Arc};
-use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
 use std::cell::{RefCell};
 use fnv::{FnvHashSet};
 use std::collections::{HashMap};
@@ -15,6 +14,8 @@ use super::{
     CompareValue,
     OpApply,
     ApplyTupleItem,
+    Binding,
+    BindingSequence,
 };
 
 pub fn ast_to_cfg(
@@ -22,11 +23,11 @@ pub fn ast_to_cfg(
     input_variables: &[Arc<str>],
 ) -> Result<CfgRule, CompileError> {
 
-    let index_sequence = AtomicUsize::new(0);
+    let binding_sequence = BindingSequence::new();
     let instance_counts = RefCell::new(HashMap::new());
     let access_counts = RefCell::new(HashMap::new());
     let binding_names = RefCell::new(HashMap::new());
-    let mut env = Env::new(&index_sequence, &instance_counts, &access_counts, &binding_names);
+    let mut env = Env::new(&binding_sequence, &instance_counts, &access_counts, &binding_names);
 
     for variable in input_variables {
         env.bind(variable);
@@ -45,7 +46,7 @@ pub fn ast_to_cfg(
         name: ast.name.as_str().into(),
         select: select,
         apply: apply,
-        bindings_len: index_sequence.into_inner(),
+        bindings_len: binding_sequence.len(),
     };
     Ok(cfg_rule)
 }
@@ -60,23 +61,23 @@ pub struct CfgRule {
 
 #[derive(Debug, Clone)]
 struct Env<'a> {
-    index_sequence: &'a AtomicUsize,
-    visible_bindings: HashMap<String, usize>,
+    binding_sequence: &'a BindingSequence,
+    visible_bindings: HashMap<String, Binding>,
     instance_counts: &'a RefCell<HashMap<String, usize>>,
-    access_counts: &'a RefCell<HashMap<usize, usize>>,
-    binding_names: &'a RefCell<HashMap<usize, String>>,
+    access_counts: &'a RefCell<HashMap<Binding, usize>>,
+    binding_names: &'a RefCell<HashMap<Binding, String>>,
 }
 
 impl<'a> Env<'a> {
 
     fn new(
-        index_sequence: &'a AtomicUsize,
+        binding_sequence: &'a BindingSequence,
         instance_counts: &'a RefCell<HashMap<String, usize>>,
-        access_counts: &'a RefCell<HashMap<usize, usize>>,
-        binding_names: &'a RefCell<HashMap<usize, String>>,
+        access_counts: &'a RefCell<HashMap<Binding, usize>>,
+        binding_names: &'a RefCell<HashMap<Binding, String>>,
     ) -> Self {
         Self {
-            index_sequence,
+            binding_sequence,
             instance_counts,
             access_counts,
             binding_names,
@@ -84,16 +85,16 @@ impl<'a> Env<'a> {
         }
     }
 
-    fn binding_set(&self) -> FnvHashSet<usize> {
+    fn binding_set(&self) -> FnvHashSet<Binding> {
         self.visible_bindings.values().copied().collect()
     }
 
-    fn bind(&mut self, name: &str) -> usize {
+    fn bind(&mut self, name: &str) -> Binding {
         if let Some(binding) = self.visible_bindings.get(name).copied() {
             *self.access_counts.borrow_mut().entry(binding).or_insert(0) += 1;
             binding
         } else {
-            let binding = self.index_sequence.fetch_add(1, AtomicOrdering::SeqCst);
+            let binding = self.binding_sequence.next();
             self.visible_bindings.insert(name.into(), binding);
             *self.instance_counts.borrow_mut().entry(name.into()).or_insert(0) += 1;
             *self.access_counts.borrow_mut().entry(binding).or_insert(0) += 1;
@@ -102,7 +103,7 @@ impl<'a> Env<'a> {
         }
     }
 
-    fn bind_new(&mut self, name: &str) -> Option<usize> {
+    fn bind_new(&mut self, name: &str) -> Option<Binding> {
         if self.visible_bindings.contains_key(name) {
             None
         } else {
@@ -110,7 +111,7 @@ impl<'a> Env<'a> {
         }
     }
 
-    fn find(&mut self, name: &str) -> Option<usize> {
+    fn find(&mut self, name: &str) -> Option<Binding> {
         if self.visible_bindings.contains_key(name) {
             Some(self.bind(name))
         } else {
@@ -118,24 +119,24 @@ impl<'a> Env<'a> {
         }
     }
 
-    fn anon(&mut self) -> usize {
-        self.index_sequence.fetch_add(1, AtomicOrdering::SeqCst)
+    fn anon(&mut self) -> Binding {
+        self.binding_sequence.next()
     }
 
-    fn binding_name(&self, binding: usize) -> Option<String> {
+    fn binding_name(&self, binding: Binding) -> Option<String> {
         self.binding_names.borrow().get(&binding).cloned()
     }
 }
 
 fn verify_multi_usage(
     env: &Env<'_>,
-    access_counts: &HashMap<usize, usize>,
+    access_counts: &HashMap<Binding, usize>,
     input_variables_len: usize,
 ) -> Result<(), CompileError> {
 
     let mut single_use = Vec::new();
     for (binding, count) in access_counts {
-        if *count == 1 && !(0..input_variables_len).contains(binding) {
+        if *count == 1 && !(0..input_variables_len).contains(&binding.index()) {
             if let Some(name) = env.binding_name(*binding) {
                 single_use.push(name.into());
             }
@@ -208,7 +209,7 @@ fn compile_apply_add(
 
 fn compile_apply_add_attribute(
     env: &mut Env<'_>,
-    binding: usize,
+    binding: Binding,
     spec: &ast::AttributeSpec<'_>,
     ops: &mut Vec<OpApply>,
 ) -> Result<(), CompileError> {
@@ -301,7 +302,7 @@ fn compile_apply_remove(
 
 fn compile_apply_object(
     env: &mut Env<'_>,
-    binding: usize,
+    binding: Binding,
     attributes: &[ast::AttributeSpec<'_>],
     ops: &mut Vec<OpApply>,
 ) -> Result<(), CompileError> {
@@ -316,7 +317,7 @@ fn compile_apply_object(
 
 fn compile_apply_tuple(
     env: &mut Env<'_>,
-    binding: usize,
+    binding: Binding,
     values: &[ast::ValueSpec<'_>],
     allow_object_construction: bool,
     ops: &mut Vec<OpApply>,
@@ -365,7 +366,7 @@ fn existing_named_binding_with_name(
     env: &mut Env<'_>,
     variable: &ast::Variable<'_>,
     position: &Span<'_>,
-) -> Result<(usize, Arc<str>), CompileError> {
+) -> Result<(Binding, Arc<str>), CompileError> {
     if let Some(name) = variable.as_str() {
         if let Some(binding) = env.find(name) {
             Ok((binding, name.into()))
@@ -386,7 +387,7 @@ fn existing_named_binding(
     env: &mut Env<'_>,
     variable: &ast::Variable<'_>,
     position: &Span<'_>,
-) -> Result<usize, CompileError> {
+) -> Result<Binding, CompileError> {
     if let Some(name) = variable.as_str() {
         if let Some(binding) = env.find(name) {
             Ok(binding)
@@ -407,7 +408,7 @@ fn nameable_new_binding(
     env: &mut Env<'_>,
     variable: &ast::Variable<'_>,
     position: &Span<'_>,
-) -> Result<usize, CompileError> {
+) -> Result<Binding, CompileError> {
     if let Some(name) = variable.as_str() {
         if let Some(binding) = env.bind_new(name) {
             Ok(binding)
@@ -569,7 +570,7 @@ fn compile_select_toplevel_binding(
 
 fn compile_select_tuple(
     env: &mut Env,
-    binding: usize,
+    binding: Binding,
     items: &[ast::ValueSpec],
     ops: &mut Vec<CfgOpSelect>,
 ) -> Result<(), CompileError> {
@@ -616,7 +617,7 @@ fn compile_select_tuple(
 
 fn compile_select_attribute(
     env: &mut Env,
-    binding: usize,
+    binding: Binding,
     attribute: &ast::AttributeSpec<'_>,
     position: &Span<'_>,
     ops: &mut Vec<CfgOpSelect>,
@@ -682,7 +683,7 @@ fn compile_select_attribute(
 
 fn compile_select_attributes(
     env: &mut Env,
-    binding: usize,
+    binding: Binding,
     attributes: &[ast::AttributeSpec<'_>],
     position: &Span<'_>,
     ops: &mut Vec<CfgOpSelect>,
@@ -695,7 +696,7 @@ fn compile_select_attributes(
 
 fn compile_select_enum(
     env: &mut Env,
-    binding: usize,
+    binding: Binding,
     options: &[ast::Enumerable<'_>],
     position: &Span<'_>,
     ops: &mut Vec<CfgOpSelect>,
@@ -733,7 +734,7 @@ fn no_binding(variable: &ast::Variable<'_>, position: &Span<'_>) -> Result<(), C
 fn optional_binding(
     env: &mut Env<'_>,
     variable: &ast::Variable<'_>,
-) -> Option<usize> {
+) -> Option<Binding> {
     if let Some(name) = variable.as_str() {
         Some(env.bind(name))
     } else {
@@ -744,7 +745,7 @@ fn optional_binding(
 fn nameable_binding(
     env: &mut Env<'_>,
     variable: &ast::Variable<'_>,
-) -> usize {
+) -> Binding {
     match variable.as_str() {
         Some(name) => env.bind(name),
         None => env.anon(),
@@ -755,7 +756,7 @@ fn named_new_binding(
     env: &mut Env<'_>,
     variable: &ast::Variable<'_>,
     position: &Span<'_>,
-) -> Result<usize, CompileError> {
+) -> Result<Binding, CompileError> {
     if let Some(name) = variable.as_str() {
         if let Some(_) = env.find(name) {
             Err(CompileError::IllegalReuse {
@@ -773,37 +774,37 @@ fn named_new_binding(
 #[derive(Debug, Clone)]
 pub enum CfgOpSelect {
     AssertObjectBinding {
-        binding: usize,
+        binding: Binding,
     },
     CompareBinding {
-        binding: usize,
+        binding: Binding,
         value: Value,
     },
     TupleBinding {
-        binding: usize,
+        binding: Binding,
         values: Vec<OpenTupleItem>,
     },
     EnumBinding {
-        binding: usize,
+        binding: Binding,
         options: Vec<EnumOption>,
     },
     RequireValueAttribute {
-        binding: usize,
+        binding: Binding,
         attribute: Symbol,
         value: Value,
     },
     AttributeBinding {
-        binding: usize,
+        binding: Binding,
         attribute: Symbol,
-        value_binding: usize,
+        value_binding: Binding,
     },
     RequireAttribute {
-        binding: usize,
+        binding: Binding,
         attribute: Symbol,
     },
     Not {
         body: Vec<CfgOpSelect>,
-        inherited_bindings: FnvHashSet<usize>,
+        inherited_bindings: FnvHashSet<Binding>,
     },
     Compare {
         operator: CompareOp,
@@ -811,7 +812,7 @@ pub enum CfgOpSelect {
         right: CompareValue,
     },
     Calculation {
-        result_binding: usize,
+        result_binding: Binding,
         operation: Calculation,
     },
 }
