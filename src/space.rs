@@ -1,4 +1,5 @@
 
+use std::sync::{Arc};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::num::{NonZeroU64};
 use std::fmt::{Debug};
@@ -7,7 +8,8 @@ use crate::{Symbol, Value, MatchValue};
 
 static OBJECT_ID_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
-type ObjectData = FnvHashMap<Id, Vec<(Symbol, Value)>>;
+type AttrData = Vec<(Symbol, Arc<Vec<Value>>)>;
+type ObjectData = FnvHashMap<Id, AttrData>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Id(NonZeroU64);
@@ -117,7 +119,9 @@ impl Space {
                 continue 'trace;
             }
             if let Some(attributes) = self.objects.get(&trace_id) {
-                trace.extend(attributes.iter().map(|(_, value)| value));
+                for (_, values) in attributes {
+                    trace.extend(values.iter());
+                }
             }
         }
 
@@ -218,8 +222,61 @@ pub trait Access: Debug {
 }
 
 #[derive(Debug, Clone)]
+pub struct ValuesIter<'a> {
+    inner: std::slice::Iter<'a, Value>,
+}
+
+impl<'a> ValuesIter<'a> {
+
+    fn new(inner: &'a [Value]) -> Self {
+        Self {
+            inner: inner.iter(),
+        }
+    }
+}
+
+impl<'a> Iterator for ValuesIter<'a> {
+
+    type Item = &'a Value;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next()
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct AttributesIter<'a> {
-    attributes: &'a [(Symbol, Value)],
+    attributes: &'a [(Symbol, Arc<Vec<Value>>)],
+    state: AttributesIterState<'a>,
+}
+
+impl<'a> AttributesIter<'a> {
+
+    pub fn new(attributes: &'a [(Symbol, Arc<Vec<Value>>)]) -> Self {
+        if let Some(((name, values), rest)) = attributes.split_first() {
+            Self {
+                attributes: rest,
+                state: AttributesIterState::Current {
+                    name: name,
+                    values: values,
+                },
+            }
+        } else {
+            Self {
+                attributes: &[],
+                state: AttributesIterState::Done,
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+enum AttributesIterState<'a> {
+    Done,
+    Current {
+        name: &'a Symbol,
+        values: &'a [Value],
+    },
 }
 
 impl<'a> Iterator for AttributesIter<'a> {
@@ -227,11 +284,24 @@ impl<'a> Iterator for AttributesIter<'a> {
     type Item = (&'a Symbol, &'a Value);
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(((name, value), rest)) = self.attributes.split_first() {
-            self.attributes = rest;
-            Some((name, value))
-        } else {
-            None
+        let Self { attributes, state } = self;
+        'search: loop {
+            return match state {
+                AttributesIterState::Done => None,
+                AttributesIterState::Current { name, values } => {
+                    if let Some((value, rest)) = values.split_first() {
+                        *values = rest;
+                        Some((name, value))
+                    } else if let Some(((name, values), rest)) = attributes.split_first() {
+                        *attributes = rest;
+                        *state = AttributesIterState::Current { name, values };
+                        continue 'search;
+                    } else {
+                        *state = AttributesIterState::Done;
+                        None
+                    }
+                },
+            };
         }
     }
 }
@@ -239,12 +309,12 @@ impl<'a> Iterator for AttributesIter<'a> {
 #[derive(Debug, Clone, Copy)]
 pub struct Attributes<'a> {
     object: Id,
-    attributes: &'a [(Symbol, Value)],
+    attributes: &'a [(Symbol, Arc<Vec<Value>>)],
 }
 
 impl<'a> Attributes<'a> {
 
-    fn new(object: Id, attributes: &'a [(Symbol, Value)]) -> Self {
+    fn new(object: Id, attributes: &'a [(Symbol, Arc<Vec<Value>>)]) -> Self {
         Self { object, attributes }
     }
 
@@ -253,14 +323,14 @@ impl<'a> Attributes<'a> {
     }
 
     pub fn len(&self) -> usize {
-        self.attributes.len()
+        self.attributes.iter().map(|(_, values)| values.len()).sum()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.attributes.is_empty()
+        self.len() == 0
     }
 
-    pub fn to_vec(&self) -> Vec<(Symbol, Value)> {
+    fn to_attr_data(&self) -> AttrData {
         self.attributes.to_vec()
     }
 
@@ -268,32 +338,34 @@ impl<'a> Attributes<'a> {
     where
         M: MatchValue + ?Sized,
     {
-        self.attributes.iter().any(|(ex_name, ex_value)| {
-            ex_name.as_ref() == name
-            &&
-            value.match_value(ex_value)
-        })
+        for (ex_name, ex_values) in self.attributes {
+            if ex_name.as_ref() == name {
+                return ex_values.iter().any(|ex_value| value.match_value(ex_value));
+            }
+        }
+        false
     }
 
     pub fn has_named(&self, name: &str) -> bool {
-        self.attributes.iter().any(|(ex_name, _)| ex_name.as_ref() == name)
+        for (ex_name, ex_values) in self.attributes {
+            if ex_name.as_ref() == name {
+                return !ex_values.is_empty();
+            }
+        }
+        false
     }
 
     pub fn iter(&self) -> AttributesIter<'a> {
-        AttributesIter { attributes: self.attributes }
+        AttributesIter::new(&self.attributes)
     }
 
-    pub fn iter_named<'n>(&self, name: &'n str) -> impl Iterator<Item = &'a Value> + 'n
-    where
-        'a: 'n,
-    {
-        self.attributes.iter().filter_map(move |(ex_name, value)| {
+    pub fn iter_named(&self, name: &str) -> ValuesIter<'a> {
+        for (ex_name, ex_values) in self.attributes {
             if ex_name.as_ref() == name {
-                Some(value)
-            } else {
-                None
+                return ValuesIter::new(ex_values);
             }
-        })
+        }
+        ValuesIter::new(&[])
     }
 
     pub fn first_named(&self, name: &str) -> Option<&'a Value> {
@@ -311,12 +383,12 @@ impl<'a> Attributes<'a> {
 #[derive(Debug)]
 pub struct AttributesMut<'a> {
     object: Id,
-    attributes: &'a mut Vec<(Symbol, Value)>,
+    attributes: &'a mut AttrData,
 }
 
 impl<'a> AttributesMut<'a> {
 
-    fn new(object: Id, attributes: &'a mut Vec<(Symbol, Value)>) -> Self {
+    fn new(object: Id, attributes: &'a mut AttrData) -> Self {
         Self { object, attributes }
     }
 
@@ -325,57 +397,73 @@ impl<'a> AttributesMut<'a> {
     }
 
     pub fn inspect(&'a self) -> Attributes<'a> {
-        Attributes::new(self.object, self.attributes)
+        Attributes::new(self.object, &self.attributes)
     }
 
     pub fn add<S, V>(&mut self, name: S, value: V)
     where
-        S: Into<Symbol>,
+        S: Into<Symbol> + AsRef<str>,
         V: Into<Value>,
     {
-        self.attributes.push((name.into(), value.into()));
+        for (ex_name, ex_values) in self.attributes.iter_mut() {
+            if ex_name.as_ref() == name.as_ref() {
+                Arc::make_mut(ex_values).push(value.into());
+                return;
+            }
+        }
+        self.attributes.push((name.into(), Arc::new(vec![value.into()])));
     }
 
     pub fn remove_first<M>(&mut self, name: &str, value: &M) -> Option<Value>
     where
         M: MatchValue + ?Sized,
     {
-        let maybe_index = self.attributes.iter().position(|(ex_name, ex_value)| {
-            ex_name.as_ref() == name && value.match_value(ex_value)
-        });
-        if let Some(index) = maybe_index {
-            Some(self.attributes.remove(index).1)
-        } else {
-            None
+        for (ex_name, ex_values) in self.attributes.iter_mut() {
+            if ex_name.as_ref() == name {
+                let maybe_index = ex_values.iter().position(|ex_value| {
+                    value.match_value(ex_value)
+                });
+                if let Some(index) = maybe_index {
+                    return Some(Arc::make_mut(ex_values).remove(index));
+                } else {
+                    return None;
+                }
+            }
         }
+        None
     }
 
     pub fn remove_first_named(&mut self, name: &str) -> Option<Value> {
-        let maybe_index = self.attributes
-            .iter()
-            .position(|(ex_name, _)| ex_name.as_ref() == name);
-        if let Some(index) = maybe_index {
-            Some(self.attributes.remove(index).1)
-        } else {
-            None
+        for (ex_name, ex_values) in self.attributes.iter_mut() {
+            if ex_name.as_ref() == name {
+                return Arc::make_mut(ex_values).pop();
+            }
         }
+        None
     }
 
     pub fn remove_all_named(&mut self, name: &str) -> Vec<Value> {
-        let mut values = Vec::new();
-        while let Some(value) = self.remove_first_named(name) {
-            values.push(value);
+        for (ex_name, ex_values) in self.attributes.iter_mut() {
+            if ex_name.as_ref() == name {
+                return std::mem::replace(Arc::make_mut(ex_values), Vec::new());
+            }
         }
-        values
+        Vec::new()
     }
 
     pub fn retain<F>(&mut self, mut should_retain: F) -> usize
     where
         F: FnMut(&Symbol, &Value) -> bool,
     {
-        let orig_len = self.attributes.len();
-        self.attributes.retain(|(name, value)| should_retain(name, value));
-        orig_len - self.attributes.len()
+        let mut removed = 0;
+        for (ex_name, ex_values) in self.attributes.iter_mut() {
+            let prev_len = ex_values.len();
+            Arc::make_mut(ex_values).retain(|ex_value| {
+                should_retain(ex_name, ex_value)
+            });
+            removed += prev_len - ex_values.len();
+        }
+        removed
     }
 
     pub fn retain_named(&mut self, name: &str) -> usize {
@@ -383,9 +471,9 @@ impl<'a> AttributesMut<'a> {
     }
 
     pub fn clear_all(&mut self) -> usize {
-        let orig_len = self.attributes.len();
+        let len = self.inspect().len();
         self.attributes.clear();
-        orig_len
+        len
     }
 
     pub fn clear_named(&mut self, name: &str) -> usize {
@@ -448,7 +536,7 @@ impl<'a> Access for Transaction<'a> {
         let Self { ref mut local_objects, outer, .. } = *self;
         let attributes = local_objects
             .entry(object)
-            .or_insert_with(|| outer.attributes(object).to_vec());
+            .or_insert_with(|| outer.attributes(object).to_attr_data());
         AttributesMut::new(object, attributes)
     }
 

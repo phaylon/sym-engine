@@ -22,6 +22,7 @@ pub use space::{
     Id,
     Transaction,
     AttributesIter,
+    ValuesIter,
 };
 pub use system::{
     System,

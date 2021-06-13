@@ -1,7 +1,7 @@
 
 use std::cmp::{Ordering};
 use num_traits::{ToPrimitive};
-use crate::{Value, Access, Symbol, AttributesIter};
+use crate::{Value, Access, ValuesIter};
 use crate::data::{CompareOp, ArithBinOp};
 use crate::compiler::{
     CompiledRule,
@@ -157,9 +157,8 @@ fn find_bindings(
             },
             Op::SearchAttributeBinding { binding, attribute, value_binding } => {
                 if let Some(id) = bindings[binding.index()].object() {
-                    let iter = space.attributes(id).iter();
+                    let iter = space.attributes(id).iter_named(attribute);
                     frames.push(Frame::Iter {
-                        attribute: attribute.clone(),
                         binding: value_binding.index(),
                         continue_op_index: op_index + 1,
                         iter,
@@ -305,16 +304,9 @@ fn find_bindings(
                             Frame::NotScope { continue_ok, .. } => {
                                 op_index = *continue_ok;
                             },
-                            Frame::Iter { attribute, iter, binding, continue_op_index } => {
-                                let mut found = None;
-                                'attributes: for (name, value) in iter {
-                                    if name == attribute {
-                                        found = Some(value.clone());
-                                        break 'attributes;
-                                    }
-                                }
-                                if let Some(value) = found {
-                                    bindings[*binding] = value;
+                            Frame::Iter { iter, binding, continue_op_index } => {
+                                if let Some(value) = iter.next() {
+                                    bindings[*binding] = value.clone();
                                     op_index = *continue_op_index;
                                 } else {
                                     frames.pop();
@@ -391,8 +383,7 @@ fn unify_numeric_types(left: Value, right: Value) -> Option<(Value, Value)> {
 
 enum Frame<'a> {
     Iter {
-        attribute: Symbol,
-        iter: AttributesIter<'a>,
+        iter: ValuesIter<'a>,
         binding: usize,
         continue_op_index: usize,
     },
