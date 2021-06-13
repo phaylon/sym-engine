@@ -84,7 +84,7 @@ mod attributes {
             attrs.add("foo", 23);
         });
         assert_eq!(space.attributes(obj).len(), 2);
-        let value = space.attributes_mut(obj).remove_first("foo", &23).unwrap();
+        let value = space.attributes_mut(obj).remove_single("foo", &23).unwrap();
         assert_eq!(value, 23.into());
         assert_eq!(space.attributes(obj).len(), 1);
         assert!(space.attributes(obj).has("foo", &23));
@@ -99,7 +99,7 @@ mod attributes {
             attrs.add("foo", 23);
         });
         assert_eq!(space.attributes(obj).len(), 2);
-        let value = space.attributes_mut(obj).remove_first_named("foo").unwrap();
+        let value = space.attributes_mut(obj).remove_single_named("foo").unwrap();
         assert_eq!(value, 23.into());
         assert_eq!(space.attributes(obj).len(), 1);
         assert!(space.attributes(obj).has("foo", &23));
@@ -218,8 +218,8 @@ mod attributes {
             attrs.add("foo", 23);
             attrs.add("foo", 99);
         });
-        assert_eq!(space.attributes(obj).first_named("foo"), Some(&Value::from(23)));
-        assert_eq!(space.attributes(obj).first_named("qux"), None);
+        assert_eq!(space.attributes(obj).single_named("foo"), Some(&Value::from(23)));
+        assert_eq!(space.attributes(obj).single_named("qux"), None);
     }
 }
 

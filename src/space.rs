@@ -368,7 +368,7 @@ impl<'a> Attributes<'a> {
         ValuesIter::new(&[])
     }
 
-    pub fn first_named(&self, name: &str) -> Option<&'a Value> {
+    pub fn single_named(&self, name: &str) -> Option<&'a Value> {
         self.iter_named(name).next()
     }
 
@@ -414,7 +414,7 @@ impl<'a> AttributesMut<'a> {
         self.attributes.push((name.into(), Arc::new(vec![value.into()])));
     }
 
-    pub fn remove_first<M>(&mut self, name: &str, value: &M) -> Option<Value>
+    pub fn remove_single<M>(&mut self, name: &str, value: &M) -> Option<Value>
     where
         M: MatchValue + ?Sized,
     {
@@ -433,7 +433,7 @@ impl<'a> AttributesMut<'a> {
         None
     }
 
-    pub fn remove_first_named(&mut self, name: &str) -> Option<Value> {
+    pub fn remove_single_named(&mut self, name: &str) -> Option<Value> {
         for (ex_name, ex_values) in self.attributes.iter_mut() {
             if ex_name.as_ref() == name {
                 return Arc::make_mut(ex_values).pop();

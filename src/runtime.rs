@@ -63,7 +63,7 @@ fn apply_changes(
             OpApply::RemoveBindingAttribute { binding, attribute, value_binding } => {
                 if let Some(id) = bindings[binding.index()].object() {
                     let removed = space.attributes_mut(id)
-                        .remove_first(attribute, &bindings[value_binding.index()]);
+                        .remove_single(attribute, &bindings[value_binding.index()]);
                     if removed.is_none() {
                         return false;
                     }
@@ -82,7 +82,7 @@ fn apply_changes(
             OpApply::RemoveValueAttribute { binding, attribute, value } => {
                 if let Some(id) = bindings[binding.index()].object() {
                     let removed = space.attributes_mut(id)
-                        .remove_first(attribute, value);
+                        .remove_single(attribute, value);
                     if removed.is_none() {
                         return false;
                     }

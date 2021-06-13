@@ -50,7 +50,7 @@ fn single_rule_fire() {
     ");
     let fired = system.run_to_first(&mut space, &[a, b]).unwrap();
     assert_eq!(fired.unwrap().as_ref(), "x");
-    let value = space.attributes_mut(a).remove_first_named("x").unwrap();
+    let value = space.attributes_mut(a).remove_single_named("x").unwrap();
     assert_eq!(value.int(), Some(23));
     assert!(space.attributes(a).is_empty());
     assert!(space.attributes(b).is_empty());
@@ -76,7 +76,7 @@ fn saturation() {
     assert!(!space.attributes(a).is_empty());
     let run_count = system.run_saturation(&mut space, &[a, b]).unwrap();
     assert_eq!(run_count, 3);
-    let value = space.attributes_mut(a).remove_first_named("done").unwrap();
+    let value = space.attributes_mut(a).remove_single_named("done").unwrap();
     assert_eq!(value.int(), Some(23));
     assert!(space.attributes(a).is_empty());
     assert!(space.attributes(b).is_empty());
