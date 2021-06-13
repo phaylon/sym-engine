@@ -79,39 +79,67 @@ impl CompiledRule {
     }
 }
 
-#[derive(Debug, Clone)]
+struct DisplayVarNames<'a>(&'a [Arc<str>]);
+
+impl std::fmt::Display for DisplayVarNames<'_> {
+
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let mut first = true;
+        for var in self.0 {
+            if first {
+                first = false;
+                write!(fmt, "`${}`", var)?;
+            } else {
+                write!(fmt, ", `${}`", var)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum CompileError {
+    #[error("illegal wildcard variable at line {line}")]
     IllegalWildcard {
         line: u32,
     },
+    #[error("illegal named binding `${name}` at line {line}")]
     IllegalNamedBinding {
         line: u32,
         name: Arc<str>,
     },
+    #[error("illegal match against binding `${name}` at line {line}")]
     IllegalBindingMatch {
         line: u32,
         name: Arc<str>,
     },
+    #[error("multiple distinct bindings to {} are generated", DisplayVarNames(.names))]
     RepeatBindings {
         names: Vec<Arc<str>>,
     },
+    #[error("bindings {} are only used once", DisplayVarNames(.names))]
     SingleBindingUse {
         names: Vec<Arc<str>>,
     },
+    #[error("illegal reuse of variable `${name}` for binding at line {line}")]
     IllegalReuse {
         line: u32,
         name: Arc<str>,
     },
-    IllegalNewBinding {
+    #[error("existing binding required instead of `${name}` at line {line}")]
+    ExistingBindingRequired {
         line: u32,
         name: Arc<str>,
     },
+    #[error("illegal removal speecification at line {line}")]
     IllegalRemoval {
         line: u32,
     },
+    #[error("illegal place for enum specification at line {line}")]
     IllegalEnumSpecification {
         line: u32,
     },
+    #[error("illegal place for object specification at line {line}")]
     IllegalObjectSpecification {
         line: u32,
     },

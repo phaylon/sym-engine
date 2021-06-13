@@ -371,7 +371,7 @@ fn existing_named_binding_with_name(
         if let Some(binding) = env.find(name) {
             Ok((binding, name.into()))
         } else {
-            Err(CompileError::IllegalNewBinding {
+            Err(CompileError::ExistingBindingRequired {
                 line: position.location_line(),
                 name: name.into(),
             })
@@ -392,7 +392,7 @@ fn existing_named_binding(
         if let Some(binding) = env.find(name) {
             Ok(binding)
         } else {
-            Err(CompileError::IllegalNewBinding {
+            Err(CompileError::ExistingBindingRequired {
                 line: position.location_line(),
                 name: name.into(),
             })

@@ -68,8 +68,8 @@ fn duplicate_rule_names() {
             rule test:x { $X.x: $ } do { + $X.x: 23 }
             rule test:x { $X.x: $ } do { + $X.x: 23 }
         "),
-        Err(LoadError::DuplicateRuleName(name))
-            if name.as_ref() == "x",
+        Err(LoadError::DuplicateRuleName(sysname, name))
+            if name.as_ref() == "x" && sysname.as_ref() == "test",
     ));
 
     // across loads
@@ -82,8 +82,8 @@ fn duplicate_rule_names() {
         loader.load_str("
             rule test:x { $X.x: $ } do { + $X.x: 23 }
         "),
-        Err(LoadError::DuplicateRuleName(name))
-            if name.as_ref() == "x",
+        Err(LoadError::DuplicateRuleName(sysname, name))
+            if name.as_ref() == "x" && sysname.as_ref() == "test",
     ));
 }
 

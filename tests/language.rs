@@ -128,7 +128,7 @@ fn select_attributes_errors() {
     );
     assert_matches!(
         load_error("rule test:x { $unknown.foo: 23 } do {}"),
-        Some(LoadError::Compile(CompileError::IllegalNewBinding { .. }))
+        Some(LoadError::Compile(CompileError::ExistingBindingRequired { .. }))
     );
 }
 
@@ -185,11 +185,11 @@ fn apply_remove_attributes_errors() {
     );
     assert_matches!(
         load_error("rule test:x {} do { - $unknown.value: 23 }"),
-        Some(LoadError::Compile(CompileError::IllegalNewBinding { .. }))
+        Some(LoadError::Compile(CompileError::ExistingBindingRequired { .. }))
     );
     assert_matches!(
         load_error("rule test:x {} do { - $ROOT.value: $x }"),
-        Some(LoadError::Compile(CompileError::IllegalNewBinding { .. }))
+        Some(LoadError::Compile(CompileError::ExistingBindingRequired { .. }))
     );
     assert_matches!(
         load_error("rule test:x {} do { - $ROOT.value: $ }"),
@@ -266,11 +266,11 @@ fn apply_add_attributes_errors() {
     );
     assert_matches!(
         load_error("rule test:x {} do { + $unknown.value: 23 }"),
-        Some(LoadError::Compile(CompileError::IllegalNewBinding { .. }))
+        Some(LoadError::Compile(CompileError::ExistingBindingRequired { .. }))
     );
     assert_matches!(
         load_error("rule test:x {} do { + $ROOT.value: $x }"),
-        Some(LoadError::Compile(CompileError::IllegalNewBinding { .. }))
+        Some(LoadError::Compile(CompileError::ExistingBindingRequired { .. }))
     );
     assert_matches!(
         load_error("rule test:x {} do { + $ROOT.value: $ }"),
@@ -313,7 +313,7 @@ fn select_bindings_errors() {
     );
     assert_matches!(
         load_error("rule test:x { $unknown: 23 } do {}"),
-        Some(LoadError::Compile(CompileError::IllegalNewBinding { .. }))
+        Some(LoadError::Compile(CompileError::ExistingBindingRequired { .. }))
     );
 }
 
@@ -396,7 +396,7 @@ fn enum_errors() {
 
     assert_matches!(
         load_error("rule test:x { $ROOT.x: 23 | $unknown } do {}"),
-        Some(LoadError::Compile(CompileError::IllegalNewBinding { .. }))
+        Some(LoadError::Compile(CompileError::ExistingBindingRequired { .. }))
     );
     assert_matches!(
         load_error("rule test:x { $ROOT.x: 23 | $ } do {}"),
@@ -521,7 +521,7 @@ fn tuple_errors() {
     );
     assert_matches!(
         load_error("rule test:x {} do { + $ROOT.x: [$unknown] }"),
-        Some(LoadError::Compile(CompileError::IllegalNewBinding { .. }))
+        Some(LoadError::Compile(CompileError::ExistingBindingRequired { .. }))
     );
 }
 
@@ -759,7 +759,7 @@ fn math_errors() {
     );
     assert_matches!(
         load_error("rule test:x { $new is 2+$unknown } do {}"),
-        Some(LoadError::Compile(CompileError::IllegalNewBinding { .. }))
+        Some(LoadError::Compile(CompileError::ExistingBindingRequired { .. }))
     );
 }
 
@@ -874,6 +874,6 @@ fn comparison_errors() {
     );
     assert_matches!(
         load_error("rule test:x { $ROOT == $unknown } do {}"),
-        Some(LoadError::Compile(CompileError::IllegalNewBinding { .. }))
+        Some(LoadError::Compile(CompileError::ExistingBindingRequired { .. }))
     );
 }

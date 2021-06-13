@@ -11,18 +11,23 @@ pub struct System {
     rules: Vec<compiler::CompiledRule>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum SystemError {
+    #[error("invalid system name `{0}`")]
     InvalidName(Arc<str>),
+    #[error("invalid input variable name `${0}`")]
     InvalidInputVariable(Arc<str>),
+    #[error("duplicate input variable name `${0}`")]
     DuplicateInputVariable(Arc<str>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum RuntimeError {
+    #[error("stopped after {count} rule firings")]
     Stopped {
         count: u64,
     },
+    #[error("expected {expected} input arguments but received {received}")]
     InvalidInputArgumentLen {
         expected: usize,
         received: usize,
@@ -67,7 +72,7 @@ impl System {
 
     fn load(&mut self, rule: compiler::CompiledRule) -> Result<(), LoadError> {
         if self.rules.iter().any(|ex| ex.name() == rule.name()) {
-            return Err(LoadError::DuplicateRuleName(rule.name().clone()));
+            return Err(LoadError::DuplicateRuleName(self.name.clone(), rule.name().clone()));
         }
         if rule.bindings_len() > self.max_binding_len {
             self.max_binding_len = rule.bindings_len();
@@ -208,23 +213,31 @@ pub enum RuntimeControl {
     Stop,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum LoadError {
+    #[error("unable to parse source code:\n{0}")]
     Parse(String),
-    Compile(compiler::CompileError),
-    DuplicateRuleName(Arc<str>),
+    #[error("rule compilation failed")]
+    Compile(#[source] compiler::CompileError),
+    #[error("duplicate rule declaration for system `{0}` rule `{1}`")]
+    DuplicateRuleName(Arc<str>, Arc<str>),
+    #[error("unknown system `{0}`")]
     NoSuchSystem(Arc<str>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, thiserror::Error)]
+#[error("source file `{path}` could not be loaded")]
 pub struct FileLoadError {
     pub path: Arc<Path>,
+    #[source]
     pub kind: FileLoadErrorKind,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum FileLoadErrorKind {
+    #[error(transparent)]
     Read(Arc<IoError>),
+    #[error(transparent)]
     Load(LoadError),
 }
 
