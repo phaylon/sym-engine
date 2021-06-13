@@ -77,11 +77,11 @@ impl Space {
     }
 
     pub fn shrink_to_fit(&mut self) {
-        self.objects.retain(|_, values| {
-            if values.is_empty() {
+        self.objects.retain(|_, attributes| {
+            if attributes.is_empty() {
                 false
             } else {
-                values.shrink_to_fit();
+                attributes.shrink_to_fit();
                 true
             }
         });
