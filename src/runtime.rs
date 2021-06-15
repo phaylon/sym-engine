@@ -274,7 +274,7 @@ fn find_bindings(
             Op::BeginNot { index, sequence_len } => {
                 frames.push(Frame::NotScope {
                     index: *index,
-                    continue_ok: op_index + *sequence_len,
+                    continue_ok: op_index + *sequence_len + 1,
                 });
                 Flow::NextOp
             },
@@ -303,6 +303,7 @@ fn find_bindings(
                         match frame {
                             Frame::NotScope { continue_ok, .. } => {
                                 op_index = *continue_ok;
+                                frames.pop();
                             },
                             Frame::Iter { iter, binding, continue_op_index } => {
                                 if let Some(value) = iter.next() {
