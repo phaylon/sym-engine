@@ -32,13 +32,66 @@ pub enum CompareOp {
     GreaterOrEqual,
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone)]
 pub enum Value {
     Object(Id),
     Symbol(Symbol),
     Int(i64),
     Float(f64),
     Tuple(Tuple),
+}
+
+impl std::cmp::PartialEq for Value {
+
+    fn eq(&self, other: &Self) -> bool {
+        value_compare(self, other) == std::cmp::Ordering::Equal
+    }
+}
+
+impl std::cmp::Eq for Value {}
+
+impl std::cmp::PartialOrd for Value {
+
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(value_compare(self, other))
+    }
+}
+
+impl std::cmp::Ord for Value {
+
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        value_compare(self, other)
+    }
+}
+
+fn value_compare(left: &Value, right: &Value) -> std::cmp::Ordering {
+    use float_ord::{FloatOrd};
+    use std::cmp::{Ordering};
+
+    match (left, right) {
+        (Value::Object(id_left), Value::Object(id_right)) =>
+            id_left.cmp(id_right),
+        (Value::Symbol(sym_left), Value::Symbol(sym_right)) =>
+            sym_left.cmp(sym_right),
+        (Value::Int(val_left), Value::Int(val_right)) =>
+            val_left.cmp(val_right),
+        (Value::Float(val_left), Value::Float(val_right)) =>
+            FloatOrd(*val_left).cmp(&FloatOrd(*val_right)),
+        (Value::Int(val_left), Value::Float(val_right)) =>
+            FloatOrd(*val_left as f64).cmp(&FloatOrd(*val_right)),
+        (Value::Float(val_left), Value::Int(val_right)) =>
+            FloatOrd(*val_left).cmp(&FloatOrd(*val_right as f64)),
+        (Value::Tuple(vals_left), Value::Tuple(vals_right)) =>
+            vals_left.cmp(vals_right),
+        (Value::Object(_), _) => Ordering::Greater,
+        (_, Value::Object(_)) => Ordering::Less,
+        (Value::Symbol(_), _) => Ordering::Greater,
+        (_, Value::Symbol(_)) => Ordering::Less,
+        (Value::Int(_), _) => Ordering::Greater,
+        (_, Value::Int(_)) => Ordering::Less,
+        (Value::Float(_), _) => Ordering::Greater,
+        (_, Value::Float(_)) => Ordering::Less,
+    }
 }
 
 impl Value {
