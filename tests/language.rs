@@ -3,6 +3,7 @@ use sym_engine::*;
 use assert_matches::{assert_matches};
 
 fn test_run(space: &mut Space, root: Id, rules: &str) -> Option<Value> {
+    eprintln!("RULES:\n{}", rules);
     let mut system = System::new("test", &["ROOT"]).unwrap();
     let mut loader = SystemLoader::new(vec![&mut system]);
     loader.load_str(rules).expect("loaded successfully");

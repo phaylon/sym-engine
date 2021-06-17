@@ -284,7 +284,7 @@ fn transform_op(op: &CfgOpSelect, prev: &OpState, seq: &mut Sequence) -> Option<
             if let Some(mut body_state) = assemble_ops(&body, prev, seq) {
                 let index = seq.next();
                 body_state.ops.push(Op::EndNot { index });
-                let sequence_len = body_state.ops.len();
+                let sequence_len = body_state.ops.len() - prev.ops.len();
                 body_state.ops.insert(prev.ops.len(), Op::BeginNot { index, sequence_len });
                 Some(body_state)
             } else {
