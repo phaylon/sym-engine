@@ -127,6 +127,10 @@ impl Space {
 
         let orig_len = self.objects.len();
         self.objects.retain(|id, _| marked.binary_search(id).is_ok());
+
+        #[cfg(feature = "tracing")]
+        tracing::trace!("collected {} objects", orig_len - self.objects.len());
+
         orig_len - self.objects.len()
     }
 }

@@ -21,11 +21,23 @@ pub fn attempt_rule_firing(
     space.transaction(&mut |mut tx| {
         if find_bindings(rule.ops(), &mut tx, bindings) {
             if apply_changes(rule.apply_ops(), &mut tx, bindings) {
+
+                #[cfg(feature = "tracing")]
+                tracing::trace!(rule = rule.name().as_ref(), outcome = "applied");
+
                 Some(tx)
             } else {
+
+                #[cfg(feature = "tracing")]
+                tracing::trace!(rule = rule.name().as_ref(), outcome = "failed application");
+
                 None
             }
         } else {
+
+            #[cfg(feature = "tracing")]
+            tracing::trace!(rule = rule.name().as_ref(), outcome = "failed match");
+
             None
         }
     })

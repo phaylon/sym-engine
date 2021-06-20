@@ -9,6 +9,8 @@ pub struct System {
     input_variables: Vec<Arc<str>>,
     max_binding_len: usize,
     rules: Vec<compiler::CompiledRule>,
+    #[cfg(feature = "tracing")]
+    tracing_span: tracing::Span,
 }
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -55,6 +57,8 @@ impl System {
             input_variables: input_variables.iter().map(|&var| var.into()).collect(),
             max_binding_len: input_variables.len(),
             rules: Vec::new(),
+            #[cfg(feature = "tracing")]
+            tracing_span: tracing::debug_span!("system", name = name),
         })
     }
 
@@ -110,6 +114,13 @@ impl System {
         space: &mut dyn Access,
         inputs: &[Id],
     ) -> Result<Option<Arc<str>>, RuntimeError> {
+
+        #[cfg(feature = "tracing")]
+        let _enter = self.tracing_span.enter();
+
+        #[cfg(feature = "tracing")]
+        tracing::trace!(system_run_mode = "to-first");
+
         let mut bindings = self.make_bindings_storage(inputs)?;
         for rule in &self.rules {
             let rule_fired = runtime::attempt_rule_firing(rule, space, &mut bindings);
@@ -141,6 +152,12 @@ impl System {
     where
         F: FnMut(&Arc<str>, &dyn Access, u64) -> RuntimeControl,
     {
+        #[cfg(feature = "tracing")]
+        let _enter = self.tracing_span.enter();
+
+        #[cfg(feature = "tracing")]
+        tracing::trace!(system_run_mode = "rule-saturation");
+
         let mut run_count = 0;
         let mut bindings = self.make_bindings_storage(inputs)?;
         for rule in &self.rules {
@@ -153,6 +170,10 @@ impl System {
                             continue 'current_rule;
                         },
                         RuntimeControl::Stop => {
+
+                            #[cfg(feature = "tracing")]
+                            tracing::debug!("system stopped");
+
                             return Err(RuntimeError::Stopped { count: run_count });
                         },
                     }
@@ -184,6 +205,12 @@ impl System {
     where
         F: FnMut(&Arc<str>, &dyn Access, u64) -> RuntimeControl,
     {
+        #[cfg(feature = "tracing")]
+        let _enter = self.tracing_span.enter();
+
+        #[cfg(feature = "tracing")]
+        tracing::trace!(system_run_mode = "saturation");
+
         let mut run_count = 0;
         let mut bindings = self.make_bindings_storage(inputs)?;
         'firing: loop {
@@ -196,6 +223,10 @@ impl System {
                             continue 'firing;
                         },
                         RuntimeControl::Stop => {
+
+                            #[cfg(feature = "tracing")]
+                            tracing::debug!("system stopped");
+
                             return Err(RuntimeError::Stopped { count: run_count });
                         },
                     }
@@ -290,8 +321,12 @@ impl<'a> SystemLoader<'a> {
 pub fn control_limit_total(total_limit: u64)
 -> impl FnMut(&Arc<str>, &dyn Access, u64) -> RuntimeControl
 {
-    move |_, _, total_count| {
+    move |_name, _, total_count| {
         if total_count >= total_limit {
+
+            #[cfg(feature = "tracing")]
+            tracing::warn!("rule `{}` exceeded total limit of {}", &_name, total_limit);
+
             RuntimeControl::Stop
         } else {
             RuntimeControl::Continue
@@ -303,10 +338,19 @@ pub fn control_limit_per_rule(per_rule_limit: u64)
 -> impl FnMut(&Arc<str>, &dyn Access, u64) -> RuntimeControl
 {
     let mut per_rule_counts = std::collections::HashMap::new();
-    move |name, _, _| {
+    move |name, _, _total_count| {
         let rule_count_entry = per_rule_counts.entry(name.clone()).or_insert(0u64);
         *rule_count_entry += 1;
         if *rule_count_entry >= per_rule_limit {
+
+            #[cfg(feature = "tracing")]
+            tracing::warn!(
+                "rule `{}` exceeded per-rule limit of {} (total count: {})",
+                &name,
+                per_rule_limit,
+                _total_count,
+            );
+
             RuntimeControl::Stop
         } else {
             RuntimeControl::Continue
