@@ -33,6 +33,9 @@ pub use system::{
     LoadError,
     FileLoadError,
     FileLoadErrorKind,
+    control_limit_per_rule,
+    control_limit_total,
+    control_limit_total_and_per_rule,
 };
 pub use compiler::{
     CompileError,

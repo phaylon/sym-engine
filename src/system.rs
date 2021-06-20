@@ -286,3 +286,44 @@ impl<'a> SystemLoader<'a> {
         Ok(rule_count)
     }
 }
+
+pub fn control_limit_total(total_limit: u64)
+-> impl FnMut(&Arc<str>, &dyn Access, u64) -> RuntimeControl
+{
+    move |_, _, total_count| {
+        if total_count >= total_limit {
+            RuntimeControl::Stop
+        } else {
+            RuntimeControl::Continue
+        }
+    }
+}
+
+pub fn control_limit_per_rule(per_rule_limit: u64)
+-> impl FnMut(&Arc<str>, &dyn Access, u64) -> RuntimeControl
+{
+    let mut per_rule_counts = std::collections::HashMap::new();
+    move |name, _, _| {
+        let rule_count_entry = per_rule_counts.entry(name.clone()).or_insert(0u64);
+        *rule_count_entry += 1;
+        if *rule_count_entry >= per_rule_limit {
+            RuntimeControl::Stop
+        } else {
+            RuntimeControl::Continue
+        }
+    }
+}
+
+pub fn control_limit_total_and_per_rule(total_limit: u64, per_rule_limit: u64)
+-> impl FnMut(&Arc<str>, &dyn Access, u64) -> RuntimeControl
+{
+    let mut cb_control_total = control_limit_total(total_limit);
+    let mut cb_control_per_rule = control_limit_per_rule(per_rule_limit);
+    move |name, access, total_count| {
+        if let RuntimeControl::Continue = cb_control_total(name, access, total_count) {
+            cb_control_per_rule(name, access, total_count)
+        } else {
+            RuntimeControl::Stop
+        }
+    }
+}

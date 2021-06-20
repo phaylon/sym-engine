@@ -1,5 +1,6 @@
 
 use sym_engine::*;
+use assert_matches::{assert_matches};
 
 #[track_caller]
 fn test_package(rules: &str) -> (System, Space, Id, Id) {
@@ -163,4 +164,69 @@ fn rule_saturation_run_control() {
     );
     assert_eq!(self_count, 5);
     assert!(matches!(run_result, Err(RuntimeError::Stopped { count: 5 })));
+}
+
+#[test]
+fn control_helper_limit_total() {
+    let (system, mut space, a, b) = test_package("
+        rule test:endless {} do {}
+    ");
+    let run_result = system.run_rule_saturation_with_control(
+        &mut space,
+        &[a, b],
+        control_limit_total(10),
+    );
+    assert_matches!(run_result, Err(RuntimeError::Stopped { count: 10 }));
+}
+
+#[test]
+fn control_helper_limit_per_rule() {
+    let (system, mut space, a, b) = test_package("
+        rule test:a_to_b {} do {
+            - $A.val: 23,
+            + $B.val: 23,
+        }
+        rule test:b_to_a {} do {
+            - $B.val: 23,
+            + $A.val: 23,
+        }
+    ");
+    space.attributes_mut(a).add("val", 23);
+    let run_result = system.run_saturation_with_control(
+        &mut space,
+        &[a, b],
+        control_limit_per_rule(10),
+    );
+    assert_matches!(run_result, Err(RuntimeError::Stopped { count: 19 }));
+}
+
+#[test]
+fn control_helper_limit_total_and_per_rule() {
+    let (system, mut space, a, b) = test_package("
+        rule test:endless {
+            not { $A.val: $ },
+            not { $B.val: $ },
+        } do {}
+        rule test:a_to_b {} do {
+            - $A.val: 23,
+            + $B.val: 23,
+        }
+        rule test:b_to_a {} do {
+            - $B.val: 23,
+            + $A.val: 23,
+        }
+    ");
+    let run_result = system.run_rule_saturation_with_control(
+        &mut space,
+        &[a, b],
+        control_limit_total(10),
+    );
+    assert_matches!(run_result, Err(RuntimeError::Stopped { count: 10 }));
+    space.attributes_mut(a).add("val", 23);
+    let run_result = system.run_saturation_with_control(
+        &mut space,
+        &[a, b],
+        control_limit_per_rule(10),
+    );
+    assert_matches!(run_result, Err(RuntimeError::Stopped { count: 19 }));
 }
