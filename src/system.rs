@@ -4,6 +4,7 @@ use std::path::{Path};
 use std::io::{Error as IoError};
 use crate::{parser, compiler, runtime, Id, Value, Access};
 
+#[derive(Debug)]
 pub struct System {
     name: Arc<str>,
     input_variables: Vec<Arc<str>>,
@@ -58,7 +59,7 @@ impl System {
             max_binding_len: input_variables.len(),
             rules: Vec::new(),
             #[cfg(feature = "tracing")]
-            tracing_span: tracing::debug_span!("system", name = name),
+            tracing_span: tracing::debug_span!("system", system_name = name),
         })
     }
 

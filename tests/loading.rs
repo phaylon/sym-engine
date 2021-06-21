@@ -1,5 +1,6 @@
 
 use sym_engine::*;
+use assert_matches::{assert_matches};
 
 #[test]
 fn basics() {
@@ -41,20 +42,20 @@ fn basics() {
 fn parse_errors() {
     let mut system = System::new("test", &["X"]).unwrap();
     let mut loader = SystemLoader::new(vec![&mut system]);
-    assert!(matches!(
+    assert_matches!(
         loader.load_str("wrong"),
-        Err(LoadError::Parse(_)),
-    ));
+        Err(LoadError::Parse(_))
+    );
 }
 
 #[test]
 fn compile_errors() {
     let mut system = System::new("test", &["X"]).unwrap();
     let mut loader = SystemLoader::new(vec![&mut system]);
-    assert!(matches!(
+    assert_matches!(
         loader.load_str("rule test:x { $Y.x: $ } do { + $X.x: 23 }"),
-        Err(LoadError::Compile(_)),
-    ));
+        Err(LoadError::Compile(_))
+    );
 }
 
 #[test]
@@ -63,14 +64,14 @@ fn duplicate_rule_names() {
     // single load
     let mut system = System::new("test", &["X"]).unwrap();
     let mut loader = SystemLoader::new(vec![&mut system]);
-    assert!(matches!(
+    assert_matches!(
         loader.load_str("
             rule test:x { $X.x: $ } do { + $X.x: 23 }
             rule test:x { $X.x: $ } do { + $X.x: 23 }
         "),
         Err(LoadError::DuplicateRuleName(sysname, name))
-            if name.as_ref() == "x" && sysname.as_ref() == "test",
-    ));
+            if name.as_ref() == "x" && sysname.as_ref() == "test"
+    );
 
     // across loads
     let mut system = System::new("test", &["X"]).unwrap();
@@ -78,24 +79,24 @@ fn duplicate_rule_names() {
     loader.load_str("
         rule test:x { $X.x: $ } do { + $X.x: 23 }
     ").unwrap();
-    assert!(matches!(
+    assert_matches!(
         loader.load_str("
             rule test:x { $X.x: $ } do { + $X.x: 23 }
         "),
         Err(LoadError::DuplicateRuleName(sysname, name))
-            if name.as_ref() == "x" && sysname.as_ref() == "test",
-    ));
+            if name.as_ref() == "x" && sysname.as_ref() == "test"
+    );
 }
 
 #[test]
 fn invalid_system() {
     let mut system = System::new("test", &["X"]).unwrap();
     let mut loader = SystemLoader::new(vec![&mut system]);
-    assert!(matches!(
+    assert_matches!(
         loader.load_str("
             rule test_unknown:x { $X.x: $ } do { + $X.x: 23 }
         "),
         Err(LoadError::NoSuchSystem(name))
-            if name.as_ref() == "test_unknown",
-    ));
+            if name.as_ref() == "test_unknown"
+    );
 }

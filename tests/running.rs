@@ -19,26 +19,26 @@ fn test_package(rules: &str) -> (System, Space, Id, Id) {
 #[test]
 fn input_variable_verification() {
 
-    assert!(matches!(
+    assert_matches!(
         System::new("test", &["X", "X"]),
-        Err(SystemError::DuplicateInputVariable(var)) if var.as_ref() == "X",
-    ));
+        Err(SystemError::DuplicateInputVariable(var)) if var.as_ref() == "X"
+    );
 
-    assert!(matches!(
+    assert_matches!(
         System::new("test", &["*"]),
-        Err(SystemError::InvalidInputVariable(name)) if name.as_ref() == "*",
-    ));
+        Err(SystemError::InvalidInputVariable(name)) if name.as_ref() == "*"
+    );
 
-    assert!(matches!(
+    assert_matches!(
         System::new("*", &[]),
-        Err(SystemError::InvalidName(name)) if name.as_ref() == "*",
-    ));
+        Err(SystemError::InvalidName(name)) if name.as_ref() == "*"
+    );
 
     let mut space = Space::new();
-    assert!(matches!(
+    assert_matches!(
         System::new("test", &["X"]).unwrap().run_to_first(&mut space, &[]),
-        Err(RuntimeError::InvalidInputArgumentLen { expected: 1, received: 0 }),
-    ));
+        Err(RuntimeError::InvalidInputArgumentLen { expected: 1, received: 0 })
+    );
 }
 
 #[test]
@@ -136,7 +136,7 @@ fn saturation_run_control() {
         },
     );
     assert_eq!(self_count, 5);
-    assert!(matches!(run_result, Err(RuntimeError::Stopped { count: 5 })));
+    assert_matches!(run_result, Err(RuntimeError::Stopped { count: 5 }));
 }
 
 #[test]
@@ -163,7 +163,7 @@ fn rule_saturation_run_control() {
         },
     );
     assert_eq!(self_count, 5);
-    assert!(matches!(run_result, Err(RuntimeError::Stopped { count: 5 })));
+    assert_matches!(run_result, Err(RuntimeError::Stopped { count: 5 }));
 }
 
 #[test]
