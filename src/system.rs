@@ -75,6 +75,21 @@ impl System {
         self.rules.len()
     }
 
+    pub fn build_rule<F>(&mut self, name: &str, builder_cb: F) -> Result<(), LoadError>
+    where
+        F: for<'seq, 'bind> FnOnce(
+            crate::SelectBuilder<'seq, 'bind>,
+            &[crate::BuilderBinding<'bind>],
+        ) -> crate::ApplyBuilder<'seq, 'bind>,
+    {
+        let compiled_rule = compiler::build_and_compile(
+            name.into(),
+            self.input_variables(),
+            builder_cb,
+        );
+        self.load(compiled_rule)
+    }
+
     fn load(&mut self, rule: compiler::CompiledRule) -> Result<(), LoadError> {
         if self.rules.iter().any(|ex| ex.name() == rule.name()) {
             return Err(LoadError::DuplicateRuleName(self.name.clone(), rule.name().clone()));

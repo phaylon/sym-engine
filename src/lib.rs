@@ -14,6 +14,7 @@ pub use data::{
     Tuple,
     MatchValue,
 };
+
 pub use space::{
     Space,
     Access,
@@ -24,6 +25,7 @@ pub use space::{
     AttributesIter,
     ValuesIter,
 };
+
 pub use system::{
     System,
     SystemLoader,
@@ -37,6 +39,16 @@ pub use system::{
     control_limit_total,
     control_limit_total_and_per_rule,
 };
+
 pub use compiler::{
     CompileError,
+    SelectBuilder,
+    TupleBuilder,
+    EnumBuilder,
+    BuilderBinding,
+    CalcBuilder,
+    CalcBuilderNode,
+    CompareBuilder,
+    ApplyBuilder,
+    ApplyTupleBuilder,
 };

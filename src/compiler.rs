@@ -8,8 +8,20 @@ use crate::data::{ArithBinOp};
 mod cfg;
 mod optimizer;
 mod ops;
+mod builder;
 
 pub use ops::{Op, TupleItem};
+pub use builder::{
+    SelectBuilder,
+    EnumBuilder,
+    TupleBuilder,
+    BuilderBinding,
+    CalcBuilder,
+    CalcBuilderNode,
+    CompareBuilder,
+    ApplyBuilder,
+    ApplyTupleBuilder,
+};
 
 #[derive(Debug, Clone)]
 struct BindingSequence {
@@ -145,16 +157,40 @@ pub enum CompileError {
     },
 }
 
+pub fn build_and_compile<F>(
+    name: Arc<str>,
+    input_variables: &[Arc<str>],
+    builder_cb: F,
+) -> CompiledRule
+where
+    F: for<'seq, 'bind> FnOnce(
+        SelectBuilder<'seq, 'bind>,
+        &[BuilderBinding<'bind>],
+    ) -> ApplyBuilder<'seq, 'bind>,
+{
+    let builder::BuiltRule { select, apply, bindings_len }
+        = builder::build(input_variables.len(), builder_cb);
+    let cfg = cfg::CfgRule { name, select, apply, bindings_len };
+    compile_cfg(cfg, input_variables.len())
+}
+
 pub fn compile(
     ast: &ast::Rule<'_>,
     input_variables: &[Arc<str>],
 ) -> Result<CompiledRule, CompileError> {
     let cfg = cfg::ast_to_cfg(ast, input_variables)?;
+    Ok(compile_cfg(cfg, input_variables.len()))
+}
+
+fn compile_cfg(
+    cfg: cfg::CfgRule,
+    input_variables_len: usize,
+) -> CompiledRule {
     let bindings_len = cfg.bindings_len;
     let name = cfg.name.as_ref().into();
     let apply_ops = cfg.apply.clone();
-    let ops = optimizer::optimize(cfg, input_variables.len());
-    Ok(CompiledRule { name, bindings_len, ops, apply_ops })
+    let ops = optimizer::optimize(cfg, input_variables_len);
+    CompiledRule { name, bindings_len, ops, apply_ops }
 }
 
 #[derive(Debug, Clone)]

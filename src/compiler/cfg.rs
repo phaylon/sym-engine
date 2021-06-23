@@ -1,7 +1,6 @@
 
 use std::sync::{Arc};
 use std::cell::{RefCell};
-use fnv::{FnvHashSet};
 use std::collections::{HashMap};
 use crate::{ast, Symbol, Value};
 use crate::data::{CompareOp};
@@ -83,10 +82,6 @@ impl<'a> Env<'a> {
             binding_names,
             visible_bindings: HashMap::new(),
         }
-    }
-
-    fn binding_set(&self) -> FnvHashSet<Binding> {
-        self.visible_bindings.values().copied().collect()
     }
 
     fn bind(&mut self, name: &str) -> Binding {
@@ -464,7 +459,6 @@ fn compile_rule_select(
             let mut sub_env = env.clone();
             compile_rule_selects(&mut sub_env, sub_selects, &mut sub_ops)?;
             ops.push(CfgOpSelect::Not {
-                inherited_bindings: env.binding_set(),
                 body: sub_ops,
             });
             Ok(())
@@ -804,7 +798,6 @@ pub enum CfgOpSelect {
     },
     Not {
         body: Vec<CfgOpSelect>,
-        inherited_bindings: FnvHashSet<Binding>,
     },
     Compare {
         operator: CompareOp,
