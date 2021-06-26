@@ -102,12 +102,14 @@ fn apply_changes(
                     return false;
                 }
             },
-            OpApply::RemoveBindingAttribute { binding, attribute, value_binding } => {
+            OpApply::RemoveBindingAttribute { binding, attribute, value_binding, optional } => {
                 if let Some(id) = bindings[binding.index()].object() {
                     let removed = space.attributes_mut(id)
                         .remove_single(attribute, &bindings[value_binding.index()]);
                     if removed.is_none() {
-                        return false;
+                        if !*optional {
+                            return false;
+                        }
                     }
                 } else {
                     return false;
@@ -121,12 +123,14 @@ fn apply_changes(
                     return false;
                 }
             },
-            OpApply::RemoveValueAttribute { binding, attribute, value } => {
+            OpApply::RemoveValueAttribute { binding, attribute, value, optional } => {
                 if let Some(id) = bindings[binding.index()].object() {
                     let removed = space.attributes_mut(id)
                         .remove_single(attribute, value);
                     if removed.is_none() {
-                        return false;
+                        if !*optional {
+                            return false;
+                        }
                     }
                 } else {
                     return false;

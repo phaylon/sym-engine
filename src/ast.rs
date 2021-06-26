@@ -144,7 +144,7 @@ pub enum RuleSelect<'a> {
 #[derive(Debug, Clone)]
 pub enum RuleApply<'a> {
     Add(BindingAttributeSpec<'a>),
-    Remove(BindingAttributeSpec<'a>),
+    Remove(BindingAttributeSpec<'a>, bool),
 }
 
 #[derive(Debug, Clone)]

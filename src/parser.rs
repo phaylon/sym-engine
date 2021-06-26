@@ -440,8 +440,14 @@ fn rule_apply(input: Span<'_>) -> Parsed<'_, ast::RuleApply<'_>> {
             ast::RuleApply::Add,
         ),
         nc::map(
-            nc::preceded(wsc_after(nc::char('-')), binding_attribute_spec),
-            ast::RuleApply::Remove,
+            nc::pair(
+                wsc_after(nc::alt((
+                    nc::value(true, nc::tag("-?")),
+                    nc::value(false, nc::tag("-")),
+                ))),
+                binding_attribute_spec,
+            ),
+            |(optional, spec)| ast::RuleApply::Remove(spec, optional),
         ),
     ))(input)
 }

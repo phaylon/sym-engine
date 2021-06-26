@@ -287,6 +287,7 @@ pub enum OpApply {
         binding: Binding,
         attribute: Symbol,
         value_binding: Binding,
+        optional: bool,
     },
     AddValueAttribute {
         binding: Binding,
@@ -297,6 +298,7 @@ pub enum OpApply {
         binding: Binding,
         attribute: Symbol,
         value: Value,
+        optional: bool,
     },
 }
 

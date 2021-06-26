@@ -135,6 +135,24 @@ impl<'seq, 'bind> ApplyBuilder<'seq, 'bind> {
             binding: binding.inner,
             attribute: attribute.into(),
             value_binding: value_binding.inner,
+            optional: false,
+        });
+    }
+
+    pub fn add_optional_binding_attribute_removal<K>(
+        &mut self,
+        binding: BuilderBinding<'bind>,
+        attribute: K,
+        value_binding: BuilderBinding<'bind>,
+    )
+    where
+        K: Into<Symbol>,
+    {
+        self.apply.push(OpApply::RemoveBindingAttribute {
+            binding: binding.inner,
+            attribute: attribute.into(),
+            value_binding: value_binding.inner,
+            optional: true,
         });
     }
 
@@ -169,6 +187,25 @@ impl<'seq, 'bind> ApplyBuilder<'seq, 'bind> {
             binding: binding.inner,
             attribute: attribute.into(),
             value: value.into(),
+            optional: false,
+        });
+    }
+
+    pub fn add_optional_value_attribute_removal<K, V>(
+        &mut self,
+        binding: BuilderBinding<'bind>,
+        attribute: K,
+        value: V,
+    )
+    where
+        K: Into<Symbol>,
+        V: Into<Value>,
+    {
+        self.apply.push(OpApply::RemoveValueAttribute {
+            binding: binding.inner,
+            attribute: attribute.into(),
+            value: value.into(),
+            optional: true,
         });
     }
 }

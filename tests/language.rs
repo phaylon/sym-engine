@@ -151,6 +151,19 @@ fn apply_remove_attributes() {
     "), Some(Value::Int(23)));
     assert!(!space.attributes(root).has_named("value"));
 
+    // optional variables
+    space.attributes_mut(root).add("value", 23);
+    assert_matches!(test_run(&mut space, root, "
+        rule test:ok {
+            $ROOT.value: $value,
+        } do {
+            + $ROOT.result: $value,
+            -? $ROOT.value: $value,
+            -? $ROOT.unknown: $value,
+        }
+    "), Some(Value::Int(23)));
+    assert!(!space.attributes(root).has_named("value"));
+
     // literals
     space.attributes_mut(root).add("value", 23);
     assert_matches!(test_run(&mut space, root, "
@@ -159,6 +172,19 @@ fn apply_remove_attributes() {
         } do {
             + $ROOT.result: 99,
             - $ROOT.value: 23,
+        }
+    "), Some(Value::Int(99)));
+    assert!(!space.attributes(root).has_named("value"));
+
+    // optional literals
+    space.attributes_mut(root).add("value", 23);
+    assert_matches!(test_run(&mut space, root, "
+        rule test:ok {
+            $ROOT.value: 23,
+        } do {
+            + $ROOT.result: 99,
+            -? $ROOT.value: 23,
+            -? $ROOT.unknown: 23,
         }
     "), Some(Value::Int(99)));
     assert!(!space.attributes(root).has_named("value"));
