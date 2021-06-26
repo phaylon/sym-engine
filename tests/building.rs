@@ -171,7 +171,7 @@ fn comparisons() {
         let binding = builder.add_attribute_binding(input[0], "value");
         builder.add_comparison(|cmp| cmp.less_or_equal().left_binding(binding).right_value(3));
         let mut builder = builder.into_apply_builder();
-        builder.add_binding_attribute_removal(input[0], "value", binding);
+        builder.add_binding_attribute_removal(input[0], "value", binding, RemovalMode::Required);
         builder.add_binding_attribute_addition(input[0], "ok", binding);
         builder
     }).unwrap();
@@ -207,8 +207,8 @@ fn calculations() {
             )
         });
         let mut builder = builder.into_apply_builder();
-        builder.add_binding_attribute_removal(input[0], "a", binding_a);
-        builder.add_binding_attribute_removal(input[0], "b", binding_b);
+        builder.add_binding_attribute_removal(input[0], "a", binding_a, RemovalMode::Required);
+        builder.add_binding_attribute_removal(input[0], "b", binding_b, RemovalMode::Required);
         builder.add_binding_attribute_addition(input[0], "result", binding_result);
         builder
     }).unwrap();

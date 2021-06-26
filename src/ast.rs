@@ -1,5 +1,5 @@
 
-use crate::{Value};
+use crate::{Value, RemovalMode};
 use crate::data::{ArithBinOp, CompareOp};
 use crate::parser::{Span};
 
@@ -144,7 +144,7 @@ pub enum RuleSelect<'a> {
 #[derive(Debug, Clone)]
 pub enum RuleApply<'a> {
     Add(BindingAttributeSpec<'a>),
-    Remove(BindingAttributeSpec<'a>, bool),
+    Remove(BindingAttributeSpec<'a>, RemovalMode),
 }
 
 #[derive(Debug, Clone)]

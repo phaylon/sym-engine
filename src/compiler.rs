@@ -287,7 +287,7 @@ pub enum OpApply {
         binding: Binding,
         attribute: Symbol,
         value_binding: Binding,
-        optional: bool,
+        mode: RemovalMode,
     },
     AddValueAttribute {
         binding: Binding,
@@ -298,7 +298,7 @@ pub enum OpApply {
         binding: Binding,
         attribute: Symbol,
         value: Value,
-        optional: bool,
+        mode: RemovalMode,
     },
 }
 
@@ -306,4 +306,10 @@ pub enum OpApply {
 pub enum ApplyTupleItem {
     Value(Value),
     Binding(Binding),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum RemovalMode {
+    Optional,
+    Required,
 }

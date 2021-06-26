@@ -1,6 +1,6 @@
 
 use crate::data::{ArithBinOp, CompareOp};
-use crate::{ast};
+use crate::{ast, RemovalMode};
 use nom_locate::{position};
 
 mod nc {
@@ -442,12 +442,12 @@ fn rule_apply(input: Span<'_>) -> Parsed<'_, ast::RuleApply<'_>> {
         nc::map(
             nc::pair(
                 wsc_after(nc::alt((
-                    nc::value(true, nc::tag("-?")),
-                    nc::value(false, nc::tag("-")),
+                    nc::value(RemovalMode::Optional, nc::tag("-?")),
+                    nc::value(RemovalMode::Required, nc::tag("-")),
                 ))),
                 binding_attribute_spec,
             ),
-            |(optional, spec)| ast::RuleApply::Remove(spec, optional),
+            |(mode, spec)| ast::RuleApply::Remove(spec, mode),
         ),
     ))(input)
 }

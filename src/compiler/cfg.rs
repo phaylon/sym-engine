@@ -15,6 +15,7 @@ use super::{
     ApplyTupleItem,
     Binding,
     BindingSequence,
+    RemovalMode,
 };
 
 pub fn ast_to_cfg(
@@ -188,7 +189,7 @@ fn compile_rule_apply(
     ops: &mut Vec<OpApply>,
 ) -> Result<(), CompileError> {
     match rule_apply {
-        ast::RuleApply::Remove(spec, optional) => compile_apply_remove(env, spec, *optional, ops),
+        ast::RuleApply::Remove(spec, mode) => compile_apply_remove(env, spec, *mode, ops),
         ast::RuleApply::Add(spec) => compile_apply_add(env, spec, ops),
     }
 }
@@ -255,7 +256,7 @@ fn compile_apply_add_attribute(
 fn compile_apply_remove(
     env: &mut Env<'_>,
     spec: &ast::BindingAttributeSpec<'_>,
-    optional: bool,
+    mode: RemovalMode,
     ops: &mut Vec<OpApply>,
 ) -> Result<(), CompileError> {
     let binding = existing_named_binding(env, &spec.variable, &spec.position)?;
@@ -265,7 +266,7 @@ fn compile_apply_remove(
                 binding,
                 attribute: spec.attribute_spec.attribute.as_str().into(),
                 value: literal.to_value(),
-                optional,
+                mode,
             });
             Ok(())
         },
@@ -275,7 +276,7 @@ fn compile_apply_remove(
                 binding,
                 attribute: spec.attribute_spec.attribute.as_str().into(),
                 value_binding,
-                optional,
+                mode,
             });
             Ok(())
         },
@@ -286,7 +287,7 @@ fn compile_apply_remove(
                 binding,
                 attribute: spec.attribute_spec.attribute.as_str().into(),
                 value_binding,
-                optional,
+                mode,
             });
             Ok(())
         },

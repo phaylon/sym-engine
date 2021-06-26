@@ -50,6 +50,7 @@ pub use compiler::{
     CompareBuilder,
     ApplyBuilder,
     ApplyTupleBuilder,
+    RemovalMode,
 };
 
 pub use runtime::{
