@@ -465,7 +465,7 @@ fn rule_apply(input: Span<'_>) -> Parsed<'_, ast::RuleApply<'_>> {
         nc::map(
             nc::pair(
                 wsc_after(nc::alt((
-                    nc::value(RemovalMode::Optional, nc::tag("-?")),
+                    nc::value(RemovalMode::Optional, nc::tag("!")),
                     nc::value(RemovalMode::Required, nc::tag("-")),
                 ))),
                 binding_attribute_spec,

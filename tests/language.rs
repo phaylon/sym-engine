@@ -158,8 +158,8 @@ fn apply_remove_attributes() {
             $ROOT.value: $value,
         } do {
             + $ROOT.result: $value,
-            -? $ROOT.value: $value,
-            -? $ROOT.unknown: $value,
+            ! $ROOT.value: $value,
+            ! $ROOT.unknown: $value,
         }
     "), Some(Value::Int(23)));
     assert!(!space.attributes(root).has_named("value"));
@@ -183,8 +183,8 @@ fn apply_remove_attributes() {
             $ROOT.value: 23,
         } do {
             + $ROOT.result: 99,
-            -? $ROOT.value: 23,
-            -? $ROOT.unknown: 23,
+            ! $ROOT.value: 23,
+            ! $ROOT.unknown: 23,
         }
     "), Some(Value::Int(99)));
     assert!(!space.attributes(root).has_named("value"));
