@@ -904,3 +904,52 @@ fn comparison_errors() {
         Some(LoadError::Compile(CompileError::ExistingBindingRequired { .. }))
     );
 }
+
+#[test]
+fn conditionals() {
+
+    let mut space = Space::new();
+    let root = space.create_id();
+
+    let active_id = space.create_id();
+    space.attributes_mut(active_id).add("value", 23);
+    space.attributes_mut(active_id).add("active", "true");
+
+    let inactive_id = space.create_id();
+    space.attributes_mut(active_id).add("value", 42);
+
+    space.attributes_mut(root).apply(|attrs| {
+        attrs.add("object", active_id);
+        attrs.add("object", inactive_id);
+    });
+
+    // success
+    assert_matches!(test_run(&mut space, root, "
+        rule test:test {
+            $ROOT.object: $o @ { value: $v },
+        } do {
+            if {
+                $o.active: true,
+            } then {
+                + $ROOT.result: $v,
+            } else {
+                + $ROOT.result: wrong,
+            }
+        }
+    "), Some(Value::Int(23)));
+
+    // failure
+    assert_matches!(test_run(&mut space, root, "
+        rule test:test {
+            $ROOT.object: $o @ { active: true, value: $v },
+        } do {
+            if {
+                $o.not_there: something,
+            } then {
+                + $ROOT.result: wrong,
+            } else {
+                + $ROOT.result: $v,
+            }
+        }
+    "), Some(Value::Int(23)));
+}

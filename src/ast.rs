@@ -133,6 +133,13 @@ pub enum Calculation<'a> {
 }
 
 #[derive(Debug, Clone)]
+pub struct ConditionalApply<'a> {
+    pub condition: Vec<RuleSelect<'a>>,
+    pub then_apply: Vec<RuleApply<'a>>,
+    pub otherwise_apply: Vec<RuleApply<'a>>,
+}
+
+#[derive(Debug, Clone)]
 pub enum RuleSelect<'a> {
     Binding(BindingSpec<'a>),
     BindingAttribute(BindingAttributeSpec<'a>),
@@ -145,6 +152,7 @@ pub enum RuleSelect<'a> {
 pub enum RuleApply<'a> {
     Add(BindingAttributeSpec<'a>),
     Remove(BindingAttributeSpec<'a>, RemovalMode),
+    Conditional(ConditionalApply<'a>),
 }
 
 #[derive(Debug, Clone)]

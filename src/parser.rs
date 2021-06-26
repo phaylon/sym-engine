@@ -436,6 +436,29 @@ fn calculation(input: Span<'_>) -> Parsed<'_, ast::Calculation<'_>> {
 fn rule_apply(input: Span<'_>) -> Parsed<'_, ast::RuleApply<'_>> {
     nc::alt((
         nc::map(
+            nc::preceded(
+                keyword("if"),
+                nc::tuple((
+                    wsc_before(block(rule_select)),
+                    nc::preceded(
+                        wsc(keyword("then")),
+                        block(rule_apply),
+                    ),
+                    nc::opt(nc::preceded(
+                        wsc(keyword("else")),
+                        block(rule_apply),
+                    )),
+                )),
+            ),
+            |(condition, then_apply, otherwise_apply)| {
+                ast::RuleApply::Conditional(ast::ConditionalApply {
+                    condition,
+                    then_apply,
+                    otherwise_apply: otherwise_apply.unwrap_or_else(Vec::new),
+                })
+            },
+        ),
+        nc::map(
             nc::preceded(wsc_after(nc::char('+')), binding_attribute_spec),
             ast::RuleApply::Add,
         ),

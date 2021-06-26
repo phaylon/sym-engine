@@ -136,12 +136,24 @@ fn apply_changes(
                     return false;
                 }
             },
+            OpApply::Conditional { condition, then_apply, otherwise_apply } => {
+                let mut local_bindings = bindings.to_vec();
+                let continue_apply =
+                    if find_first_bindings(condition, space, &mut local_bindings) {
+                        apply_changes(then_apply, space, bindings)
+                    } else {
+                        apply_changes(otherwise_apply, space, bindings)
+                    };
+                if !continue_apply {
+                    return false;
+                }
+            },
         }
     }
     true
 }
 
-fn find_first_bindings(
+pub fn find_first_bindings(
     ops: &[Op],
     space: &dyn Access,
     bindings: &mut [Value],

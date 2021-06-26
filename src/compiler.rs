@@ -2,15 +2,16 @@
 use std::sync::{Arc};
 use std::cell::{RefCell};
 use num_traits::{ToPrimitive};
-use crate::{ast, Value, Symbol};
+use crate::{ast, Value};
 use crate::data::{ArithBinOp};
 
 mod cfg;
+mod cfg_ops;
 mod optimizer;
 mod ops;
 mod builder;
 
-pub use ops::{Op, TupleItem};
+pub use ops::{Op, OpApply, TupleItem};
 pub use builder::{
     SelectBuilder,
     EnumBuilder,
@@ -188,8 +189,7 @@ fn compile_cfg(
 ) -> CompiledRule {
     let bindings_len = cfg.bindings_len;
     let name = cfg.name.as_ref().into();
-    let apply_ops = cfg.apply.clone();
-    let ops = optimizer::optimize(cfg, input_variables_len);
+    let (ops, apply_ops) = optimizer::optimize(&cfg, input_variables_len);
     CompiledRule { name, bindings_len, ops, apply_ops }
 }
 
@@ -260,46 +260,6 @@ impl EnumOption {
             _ => None,
         }
     }
-}
-
-#[derive(Debug, Clone)]
-pub enum OpenTupleItem {
-    Ignore,
-    Binding(Binding),
-    Compare(Value),
-}
-
-#[derive(Debug, Clone)]
-pub enum OpApply {
-    CreateObject {
-        binding: Binding,
-    },
-    CreateTuple {
-        binding: Binding,
-        items: Vec<ApplyTupleItem>,
-    },
-    AddBindingAttribute {
-        binding: Binding,
-        attribute: Symbol,
-        value_binding: Binding,
-    },
-    RemoveBindingAttribute {
-        binding: Binding,
-        attribute: Symbol,
-        value_binding: Binding,
-        mode: RemovalMode,
-    },
-    AddValueAttribute {
-        binding: Binding,
-        attribute: Symbol,
-        value: Value,
-    },
-    RemoveValueAttribute {
-        binding: Binding,
-        attribute: Symbol,
-        value: Value,
-        mode: RemovalMode,
-    },
 }
 
 #[derive(Debug, Clone)]

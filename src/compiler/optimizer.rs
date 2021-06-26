@@ -1,9 +1,10 @@
 
 use fnv::{FnvHashSet};
 use float_ord::{FloatOrd};
-use super::cfg::{CfgRule, CfgOpSelect};
-use super::ops::{Op};
-use super::{ops, OpenTupleItem, EnumOption, Binding};
+use super::cfg::{CfgRule};
+use super::cfg_ops::{CfgOpSelect, CfgOpApply, OpenTupleItem};
+use super::ops::{Op, OpApply};
+use super::{ops, EnumOption, Binding};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct JumpIndex(usize);
@@ -65,19 +66,83 @@ impl Sequence {
     }
 }
 
-pub fn optimize(mut rule: CfgRule, input_bindings_len: usize) -> Vec<Op> {
-
-    eliminate_object_assertions(&mut rule.select);
+pub fn optimize(rule: &CfgRule, input_bindings_len: usize) -> (Vec<Op>, Vec<OpApply>) {
 
     let mut sequence = Sequence::new();
-    let provided_bindings = (0..input_bindings_len)
+    let provided = (0..input_bindings_len)
         .map(Binding::with_index)
         .collect::<Vec<Binding>>();
-    let ops = assemble_ops(&rule.select, &OpState::new(&provided_bindings), &mut sequence);
 
-    let mut ops = ops.expect("search op order solution").ops;
-    ops.push(Op::End);
+    let (st_provided, select_ops) = optimize_select(&mut sequence, &rule.select, &provided);
+    let apply_ops = optimize_apply(&mut sequence, &rule.apply, &st_provided);
+
+    (select_ops, apply_ops)
+}
+
+fn optimize_apply(
+    sequence: &mut Sequence,
+    cfg_ops: &[CfgOpApply],
+    provided: &[Binding],
+) -> Vec<OpApply> {
+
+    let mut ops = Vec::new();
+    for cfg_op in cfg_ops {
+        ops.push(match *cfg_op {
+            CfgOpApply::CreateObject { binding } =>
+                OpApply::CreateObject { binding },
+            CfgOpApply::CreateTuple { binding, ref items } =>
+                OpApply::CreateTuple { binding, items: items.clone() },
+            CfgOpApply::AddBindingAttribute { binding, ref attribute, value_binding } =>
+                OpApply::AddBindingAttribute {
+                    binding,
+                    attribute: attribute.clone(),
+                    value_binding,
+                },
+            CfgOpApply::RemoveBindingAttribute { binding, ref attribute, value_binding, mode } =>
+                OpApply::RemoveBindingAttribute {
+                    binding,
+                    attribute: attribute.clone(),
+                    value_binding,
+                    mode,
+                },
+            CfgOpApply::AddValueAttribute { binding, ref attribute, ref value } =>
+                OpApply::AddValueAttribute {
+                    binding,
+                    attribute: attribute.clone(),
+                    value: value.clone(),
+                },
+            CfgOpApply::RemoveValueAttribute { binding, ref attribute, ref value, mode } =>
+                OpApply::RemoveValueAttribute {
+                    binding,
+                    attribute: attribute.clone(),
+                    value: value.clone(),
+                    mode,
+                },
+            CfgOpApply::Conditional { ref condition, ref then_apply, ref otherwise_apply } => {
+                let (_, condition) = optimize_select(sequence, condition, provided);
+                let then_apply = optimize_apply(sequence, then_apply, provided);
+                let otherwise_apply = optimize_apply(sequence, otherwise_apply, provided);
+                OpApply::Conditional { condition, then_apply, otherwise_apply }
+            },
+        });
+    }
     ops
+}
+
+fn optimize_select(
+    sequence: &mut Sequence,
+    cfg_ops: &[CfgOpSelect],
+    provided: &[Binding],
+) -> (Vec<Binding>, Vec<Op>) {
+
+    let mut cfg_ops = cfg_ops.to_vec();
+    eliminate_object_assertions(&mut cfg_ops);
+
+    let mut state = assemble_ops(&cfg_ops, &OpState::new(provided), sequence)
+        .expect("select op order solution");
+    state.ops.push(Op::End);
+
+    (state.provided, state.ops)
 }
 
 fn assemble_ops(select: &[CfgOpSelect], prev: &OpState, seq: &mut Sequence) -> Option<OpState> {

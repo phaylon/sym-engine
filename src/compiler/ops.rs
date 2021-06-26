@@ -1,7 +1,7 @@
 
 use crate::{Symbol, Value};
 use crate::data::{CompareOp};
-use super::{EnumOption, Calculation, CompareValue, Binding};
+use super::{EnumOption, Calculation, CompareValue, Binding, RemovalMode, ApplyTupleItem};
 
 #[derive(Debug, Clone)]
 pub enum Op {
@@ -69,4 +69,42 @@ pub enum TupleItem {
     Bind(Binding),
     CompareBinding(Binding),
     CompareValue(Value),
+}
+
+#[derive(Debug, Clone)]
+pub enum OpApply {
+    CreateObject {
+        binding: Binding,
+    },
+    CreateTuple {
+        binding: Binding,
+        items: Vec<ApplyTupleItem>,
+    },
+    AddBindingAttribute {
+        binding: Binding,
+        attribute: Symbol,
+        value_binding: Binding,
+    },
+    RemoveBindingAttribute {
+        binding: Binding,
+        attribute: Symbol,
+        value_binding: Binding,
+        mode: RemovalMode,
+    },
+    AddValueAttribute {
+        binding: Binding,
+        attribute: Symbol,
+        value: Value,
+    },
+    RemoveValueAttribute {
+        binding: Binding,
+        attribute: Symbol,
+        value: Value,
+        mode: RemovalMode,
+    },
+    Conditional {
+        condition: Vec<Op>,
+        then_apply: Vec<OpApply>,
+        otherwise_apply: Vec<OpApply>,
+    },
 }

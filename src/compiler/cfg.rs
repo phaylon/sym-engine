@@ -2,16 +2,14 @@
 use std::sync::{Arc};
 use std::cell::{RefCell};
 use std::collections::{HashMap};
-use crate::{ast, Symbol, Value};
-use crate::data::{CompareOp};
+use crate::{ast, Value};
 use crate::parser::{Span};
+use super::cfg_ops::{CfgOpSelect, CfgOpApply, OpenTupleItem};
 use super::{
     CompileError,
     EnumOption,
-    OpenTupleItem,
     Calculation,
     CompareValue,
-    OpApply,
     ApplyTupleItem,
     Binding,
     BindingSequence,
@@ -55,7 +53,7 @@ pub fn ast_to_cfg(
 pub struct CfgRule {
     pub name: Arc<str>,
     pub select: Vec<CfgOpSelect>,
-    pub apply: Vec<OpApply>,
+    pub apply: Vec<CfgOpApply>,
     pub bindings_len: usize,
 }
 
@@ -175,7 +173,7 @@ fn verify_distinct_bindings(
 fn compile_rule_applys(
     env: &mut Env<'_>,
     rule_applys: &[ast::RuleApply<'_>],
-    ops: &mut Vec<OpApply>,
+    ops: &mut Vec<CfgOpApply>,
 ) -> Result<(), CompileError> {
     for rule_apply in rule_applys {
         compile_rule_apply(env, rule_apply, ops)?;
@@ -186,18 +184,48 @@ fn compile_rule_applys(
 fn compile_rule_apply(
     env: &mut Env<'_>,
     rule_apply: &ast::RuleApply<'_>,
-    ops: &mut Vec<OpApply>,
+    ops: &mut Vec<CfgOpApply>,
 ) -> Result<(), CompileError> {
     match rule_apply {
         ast::RuleApply::Remove(spec, mode) => compile_apply_remove(env, spec, *mode, ops),
         ast::RuleApply::Add(spec) => compile_apply_add(env, spec, ops),
+        ast::RuleApply::Conditional(cond) => compile_apply_conditional(env, cond, ops),
     }
+}
+
+fn compile_apply_conditional(
+    env: &mut Env,
+    cond: &ast::ConditionalApply,
+    ops: &mut Vec<CfgOpApply>,
+) -> Result<(), CompileError> {
+
+    let condition = {
+        let mut ops = Vec::new();
+        let mut env = env.clone();
+        compile_rule_selects(&mut env, &cond.condition, &mut ops)?;
+        ops
+    };
+    let then_apply = {
+        let mut ops = Vec::new();
+        let mut env = env.clone();
+        compile_rule_applys(&mut env, &cond.then_apply, &mut ops)?;
+        ops
+    };
+    let otherwise_apply = {
+        let mut ops = Vec::new();
+        let mut env = env.clone();
+        compile_rule_applys(&mut env, &cond.otherwise_apply, &mut ops)?;
+        ops
+    };
+
+    ops.push(CfgOpApply::Conditional { condition, then_apply, otherwise_apply });
+    Ok(())
 }
 
 fn compile_apply_add(
     env: &mut Env<'_>,
     spec: &ast::BindingAttributeSpec<'_>,
-    ops: &mut Vec<OpApply>,
+    ops: &mut Vec<CfgOpApply>,
 ) -> Result<(), CompileError> {
     let binding = existing_named_binding(env, &spec.variable, &spec.position)?;
     compile_apply_add_attribute(env, binding, &spec.attribute_spec, ops)
@@ -207,11 +235,11 @@ fn compile_apply_add_attribute(
     env: &mut Env<'_>,
     binding: Binding,
     spec: &ast::AttributeSpec<'_>,
-    ops: &mut Vec<OpApply>,
+    ops: &mut Vec<CfgOpApply>,
 ) -> Result<(), CompileError> {
     match &spec.value_spec.kind {
         ast::ValueSpecKind::Literal(literal) => {
-            ops.push(OpApply::AddValueAttribute {
+            ops.push(CfgOpApply::AddValueAttribute {
                 binding,
                 attribute: spec.attribute.as_str().into(),
                 value: literal.to_value(),
@@ -220,7 +248,7 @@ fn compile_apply_add_attribute(
         },
         ast::ValueSpecKind::Variable(variable) => {
             let value_binding = existing_named_binding(env, variable, &spec.position)?;
-            ops.push(OpApply::AddBindingAttribute {
+            ops.push(CfgOpApply::AddBindingAttribute {
                 binding,
                 attribute: spec.attribute.as_str().into(),
                 value_binding,
@@ -230,7 +258,7 @@ fn compile_apply_add_attribute(
         ast::ValueSpecKind::Tuple(ast::Bindable { variable: direct, inner: values }) => {
             let value_binding = nameable_new_binding(env, direct, &spec.position)?;
             compile_apply_tuple(env, value_binding, values, true, ops)?;
-            ops.push(OpApply::AddBindingAttribute {
+            ops.push(CfgOpApply::AddBindingAttribute {
                 binding,
                 attribute: spec.attribute.as_str().into(),
                 value_binding,
@@ -243,7 +271,7 @@ fn compile_apply_add_attribute(
         ast::ValueSpecKind::Struct(ast::Bindable { variable: direct, inner: attributes }) => {
             let value_binding = nameable_new_binding(env, direct, &spec.position)?;
             compile_apply_object(env, value_binding, attributes, ops)?;
-            ops.push(OpApply::AddBindingAttribute {
+            ops.push(CfgOpApply::AddBindingAttribute {
                 binding,
                 attribute: spec.attribute.as_str().into(),
                 value_binding,
@@ -257,12 +285,12 @@ fn compile_apply_remove(
     env: &mut Env<'_>,
     spec: &ast::BindingAttributeSpec<'_>,
     mode: RemovalMode,
-    ops: &mut Vec<OpApply>,
+    ops: &mut Vec<CfgOpApply>,
 ) -> Result<(), CompileError> {
     let binding = existing_named_binding(env, &spec.variable, &spec.position)?;
     match &spec.attribute_spec.value_spec.kind {
         ast::ValueSpecKind::Literal(literal) => {
-            ops.push(OpApply::RemoveValueAttribute {
+            ops.push(CfgOpApply::RemoveValueAttribute {
                 binding,
                 attribute: spec.attribute_spec.attribute.as_str().into(),
                 value: literal.to_value(),
@@ -272,7 +300,7 @@ fn compile_apply_remove(
         },
         ast::ValueSpecKind::Variable(variable) => {
             let value_binding = existing_named_binding(env, variable, &spec.position)?;
-            ops.push(OpApply::RemoveBindingAttribute {
+            ops.push(CfgOpApply::RemoveBindingAttribute {
                 binding,
                 attribute: spec.attribute_spec.attribute.as_str().into(),
                 value_binding,
@@ -283,7 +311,7 @@ fn compile_apply_remove(
         ast::ValueSpecKind::Tuple(ast::Bindable { variable: direct, inner: values }) => {
             let value_binding = nameable_new_binding(env, direct, &spec.position)?;
             compile_apply_tuple(env, value_binding, values, false, ops)?;
-            ops.push(OpApply::RemoveBindingAttribute {
+            ops.push(CfgOpApply::RemoveBindingAttribute {
                 binding,
                 attribute: spec.attribute_spec.attribute.as_str().into(),
                 value_binding,
@@ -304,9 +332,9 @@ fn compile_apply_object(
     env: &mut Env<'_>,
     binding: Binding,
     attributes: &[ast::AttributeSpec<'_>],
-    ops: &mut Vec<OpApply>,
+    ops: &mut Vec<CfgOpApply>,
 ) -> Result<(), CompileError> {
-    ops.push(OpApply::CreateObject {
+    ops.push(CfgOpApply::CreateObject {
         binding,
     });
     for attribute in attributes {
@@ -320,7 +348,7 @@ fn compile_apply_tuple(
     binding: Binding,
     values: &[ast::ValueSpec<'_>],
     allow_object_construction: bool,
-    ops: &mut Vec<OpApply>,
+    ops: &mut Vec<CfgOpApply>,
 ) -> Result<(), CompileError> {
     let mut cfg_tuple_items = Vec::new();
     for value_spec in values {
@@ -355,7 +383,7 @@ fn compile_apply_tuple(
             },
         }
     }
-    ops.push(OpApply::CreateTuple {
+    ops.push(CfgOpApply::CreateTuple {
         binding,
         items: cfg_tuple_items,
     });
@@ -768,49 +796,4 @@ fn named_new_binding(
     } else {
         Err(CompileError::IllegalWildcard { line: position.location_line() })
     }
-}
-
-#[derive(Debug, Clone)]
-pub enum CfgOpSelect {
-    AssertObjectBinding {
-        binding: Binding,
-    },
-    CompareBinding {
-        binding: Binding,
-        value: Value,
-    },
-    TupleBinding {
-        binding: Binding,
-        values: Vec<OpenTupleItem>,
-    },
-    EnumBinding {
-        binding: Binding,
-        options: Vec<EnumOption>,
-    },
-    RequireValueAttribute {
-        binding: Binding,
-        attribute: Symbol,
-        value: Value,
-    },
-    AttributeBinding {
-        binding: Binding,
-        attribute: Symbol,
-        value_binding: Binding,
-    },
-    RequireAttribute {
-        binding: Binding,
-        attribute: Symbol,
-    },
-    Not {
-        body: Vec<CfgOpSelect>,
-    },
-    Compare {
-        operator: CompareOp,
-        left: CompareValue,
-        right: CompareValue,
-    },
-    Calculation {
-        result_binding: Binding,
-        operation: Calculation,
-    },
 }

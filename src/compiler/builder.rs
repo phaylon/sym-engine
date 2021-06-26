@@ -1,15 +1,13 @@
 
 use crate::{Symbol, Value};
 use crate::data::{CompareOp, ArithBinOp};
-use super::cfg::{CfgOpSelect};
+use super::cfg_ops::{CfgOpSelect, CfgOpApply, OpenTupleItem};
 use super::{
     BindingSequence,
     Binding,
-    OpenTupleItem,
     EnumOption,
     CompareValue,
     Calculation,
-    OpApply,
     ApplyTupleItem,
     RemovalMode,
 };
@@ -17,7 +15,7 @@ use super::{
 #[derive(Debug)]
 pub struct BuiltRule {
     pub select: Vec<CfgOpSelect>,
-    pub apply: Vec<OpApply>,
+    pub apply: Vec<CfgOpApply>,
     pub bindings_len: usize,
 }
 
@@ -78,14 +76,14 @@ pub struct BuilderBinding<'bind> {
 pub struct ApplyBuilder<'seq, 'bind> {
     binding_sequence: LinkedBindingSequence<'seq, 'bind>,
     select: SelectBuilder<'seq, 'bind>,
-    apply: Vec<OpApply>,
+    apply: Vec<CfgOpApply>,
 }
 
 impl<'seq, 'bind> ApplyBuilder<'seq, 'bind> {
 
     pub fn add_object_creation(&mut self) -> BuilderBinding<'bind> {
         let binding = self.binding_sequence.next();
-        self.apply.push(OpApply::CreateObject {
+        self.apply.push(CfgOpApply::CreateObject {
             binding: binding.inner,
         });
         binding
@@ -100,7 +98,7 @@ impl<'seq, 'bind> ApplyBuilder<'seq, 'bind> {
             tuple_items: Vec::new(),
         };
         tuple_items_cb(&mut apply_tuple_builder);
-        self.apply.push(OpApply::CreateTuple {
+        self.apply.push(CfgOpApply::CreateTuple {
             binding: binding.inner,
             items: apply_tuple_builder.tuple_items,
         });
@@ -116,7 +114,7 @@ impl<'seq, 'bind> ApplyBuilder<'seq, 'bind> {
     where
         K: Into<Symbol>,
     {
-        self.apply.push(OpApply::AddBindingAttribute {
+        self.apply.push(CfgOpApply::AddBindingAttribute {
             binding: binding.inner,
             attribute: attribute.into(),
             value_binding: value_binding.inner,
@@ -133,7 +131,7 @@ impl<'seq, 'bind> ApplyBuilder<'seq, 'bind> {
     where
         K: Into<Symbol>,
     {
-        self.apply.push(OpApply::RemoveBindingAttribute {
+        self.apply.push(CfgOpApply::RemoveBindingAttribute {
             binding: binding.inner,
             attribute: attribute.into(),
             value_binding: value_binding.inner,
@@ -151,7 +149,7 @@ impl<'seq, 'bind> ApplyBuilder<'seq, 'bind> {
         K: Into<Symbol>,
         V: Into<Value>,
     {
-        self.apply.push(OpApply::AddValueAttribute {
+        self.apply.push(CfgOpApply::AddValueAttribute {
             binding: binding.inner,
             attribute: attribute.into(),
             value: value.into(),
@@ -169,7 +167,7 @@ impl<'seq, 'bind> ApplyBuilder<'seq, 'bind> {
         K: Into<Symbol>,
         V: Into<Value>,
     {
-        self.apply.push(OpApply::RemoveValueAttribute {
+        self.apply.push(CfgOpApply::RemoveValueAttribute {
             binding: binding.inner,
             attribute: attribute.into(),
             value: value.into(),
