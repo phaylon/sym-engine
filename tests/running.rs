@@ -230,3 +230,40 @@ fn control_helper_limit_total_and_per_rule() {
     );
     assert_matches!(run_result, Err(RuntimeError::Stopped { count: 19 }));
 }
+
+#[test]
+fn splinter() {
+
+    let (system, mut space, a, b) = test_package("
+        rule test:sp {
+            $A.value: $value,
+        } do {
+            + $A.found: $value,
+        }
+    ");
+    space.attributes_mut(a).apply(|attrs| {
+        attrs.add("value", 23);
+        attrs.add("value", 42);
+    });
+
+    space.transaction(&mut |tx| {
+        let mut new_txs = Vec::new();
+        system.run_splinter(&tx, &[a, b], |new_tx, name| {
+            assert_eq!(name.as_ref(), "sp");
+            new_txs.push(new_tx);
+            RuntimeControl::Continue
+        }).unwrap();
+        assert_eq!(new_txs.len(), 2);
+        assert!(new_txs.iter().any(|new_tx| {
+            new_tx.attributes(a).has("found", &23)
+            &&
+            !new_tx.attributes(a).has("found", &42)
+        }));
+        assert!(new_txs.iter().any(|new_tx| {
+            new_tx.attributes(a).has("found", &42)
+            &&
+            !new_tx.attributes(a).has("found", &23)
+        }));
+        None
+    });
+}

@@ -2,7 +2,7 @@
 use std::sync::{Arc};
 use std::path::{Path};
 use std::io::{Error as IoError};
-use crate::{parser, compiler, runtime, Id, Value, Access};
+use crate::{parser, compiler, runtime, Id, Value, Access, Transaction, RuntimeControl};
 
 #[derive(Debug)]
 pub struct System {
@@ -252,12 +252,43 @@ impl System {
         }
         Ok(run_count)
     }
-}
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum RuntimeControl {
-    Continue,
-    Stop,
+    pub fn run_splinter<'space, F>(
+        &self,
+        tx: &Transaction<'space>,
+        inputs: &[Id],
+        mut collect: F,
+    ) -> Result<usize, RuntimeError>
+    where
+        F: FnMut(Transaction<'space>, &Arc<str>) -> RuntimeControl,
+    {
+        #[cfg(feature = "tracing")]
+        let _enter = self.tracing_span.enter();
+
+        #[cfg(feature = "tracing")]
+        tracing::trace!(system_run_mode = "splinter");
+
+        let mut bindings = self.make_bindings_storage(inputs)?;
+        let mut total_count = 0;
+        let mut stopped = false;
+        'firing: for rule in &self.rules {
+            total_count += runtime::splinter_rule(rule, tx, &mut bindings, |new_tx| {
+                let result = collect(new_tx, rule.name());
+                if let RuntimeControl::Stop = result {
+                    stopped = true;
+                }
+                result
+            });
+            if stopped {
+
+                #[cfg(feature = "tracing")]
+                tracing::debug!("system stopped");
+
+                break 'firing;
+            }
+        }
+        Ok(total_count)
+    }
 }
 
 #[derive(Debug, Clone, thiserror::Error)]

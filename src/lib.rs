@@ -30,7 +30,6 @@ pub use system::{
     System,
     SystemLoader,
     SystemError,
-    RuntimeControl,
     RuntimeError,
     LoadError,
     FileLoadError,
@@ -51,4 +50,8 @@ pub use compiler::{
     CompareBuilder,
     ApplyBuilder,
     ApplyTupleBuilder,
+};
+
+pub use runtime::{
+    RuntimeControl,
 };

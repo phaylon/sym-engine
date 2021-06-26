@@ -1,7 +1,7 @@
 
 use std::cmp::{Ordering};
 use num_traits::{ToPrimitive};
-use crate::{Value, Access, ValuesIter};
+use crate::{Value, Access, Transaction, ValuesIter};
 use crate::data::{CompareOp, ArithBinOp};
 use crate::compiler::{
     CompiledRule,
@@ -13,13 +13,43 @@ use crate::compiler::{
     Calculation,
 };
 
+pub fn splinter_rule<'space, F>(
+    rule: &CompiledRule,
+    tx: &Transaction<'space>,
+    bindings: &mut [Value],
+    mut collect: F,
+) -> usize
+where
+    F: FnMut(Transaction<'space>) -> RuntimeControl,
+{
+    let mut count = 0;
+    search_bindings(rule.ops(), tx, bindings, |bindings| {
+        let mut new_tx = tx.clone();
+        if apply_changes(rule.apply_ops(), &mut new_tx, bindings) {
+            count += 1;
+
+            #[cfg(feature = "tracing")]
+            tracing::trace!(rule = rule.name().as_ref(), outcome = "produced-transaction");
+
+            collect(new_tx)
+        } else {
+
+            #[cfg(feature = "tracing")]
+            tracing::trace!(rule = rule.name().as_ref(), outcome = "failed application");
+
+            RuntimeControl::Continue
+        }
+    });
+    count
+}
+
 pub fn attempt_rule_firing(
     rule: &CompiledRule,
     space: &mut dyn Access,
     bindings: &mut [Value],
 ) -> bool {
     space.transaction(&mut |mut tx| {
-        if find_bindings(rule.ops(), &mut tx, bindings) {
+        if find_first_bindings(rule.ops(), &mut tx, bindings) {
             if apply_changes(rule.apply_ops(), &mut tx, bindings) {
 
                 #[cfg(feature = "tracing")]
@@ -107,12 +137,29 @@ fn apply_changes(
     true
 }
 
-fn find_bindings(
+fn find_first_bindings(
     ops: &[Op],
-    space: &mut dyn Access,
+    space: &dyn Access,
     bindings: &mut [Value],
 ) -> bool {
+    search_bindings(ops, space, bindings, |_| RuntimeControl::Stop)
+}
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum RuntimeControl {
+    Continue,
+    Stop,
+}
+
+fn search_bindings<F>(
+    ops: &[Op],
+    space: &dyn Access,
+    bindings: &mut [Value],
+    mut control: F,
+) -> bool
+where
+    F: FnMut(&mut [Value]) -> RuntimeControl,
+{
     let mut op_index = 0;
     let mut frames = Vec::new();
 
@@ -302,7 +349,12 @@ fn find_bindings(
                 Flow::NextBranch
             },
             Op::End => {
-                return true;
+                match control(bindings) {
+                    RuntimeControl::Continue => Flow::NextBranch,
+                    RuntimeControl::Stop => {
+                        return true;
+                    },
+                }
             },
         };
         match flow {
