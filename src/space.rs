@@ -143,6 +143,14 @@ impl Access for Space {
         Id(id)
     }
 
+    fn clone_object(&mut self, object: Id) -> Id {
+        let new_object = self.create_id();
+        if let Some(contents) = self.objects.get(&object).cloned() {
+            self.objects.insert(new_object, contents);
+        }
+        new_object
+    }
+
     fn register_root(&mut self, object: Id) -> bool {
         self.root_objects.add(object)
     }
@@ -208,6 +216,8 @@ pub trait Access: Debug {
         let id = self.create_root_id();
         self.attributes_mut(id)
     }
+
+    fn clone_object(&mut self, object: Id) -> Id;
 
     fn register_root(&mut self, object: Id) -> bool;
 
@@ -518,6 +528,15 @@ impl<'a> Access for Transaction<'a> {
 
     fn create_id(&self) -> Id {
         self.outer.create_id()
+    }
+
+    fn clone_object(&mut self, object: Id) -> Id {
+        let new_object = self.create_id();
+        let contents = self.attributes(object).to_attr_data();
+        if !contents.is_empty() {
+            self.local_objects.insert(new_object, contents);
+        }
+        new_object
     }
 
     fn register_root(&mut self, object: Id) -> bool {

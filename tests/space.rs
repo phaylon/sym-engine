@@ -50,6 +50,26 @@ fn garbage_collection() {
     assert!(space.attributes(obj_tuple_b).has("mark", "ex"));
 }
 
+#[test]
+fn object_cloning() {
+    let mut space = Space::new();
+
+    let src = space.create_id();
+    space.attributes_mut(src).apply(|attrs| {
+        attrs.add("a", 23);
+        attrs.add("b", 42);
+    });
+
+    let dst = space.clone_object(src);
+    assert_ne!(src, dst);
+
+    assert!(space.attributes(dst).has("a", &23));
+    assert!(space.attributes(dst).has("b", &42));
+
+    assert!(space.attributes(src).has("a", &23));
+    assert!(space.attributes(src).has("b", &42));
+}
+
 mod attributes {
     use super::*;
 
@@ -318,5 +338,32 @@ mod transactions {
 
         let obj_new = maybe_obj_new.unwrap();
         assert!(!space.attributes(obj_new).has("mod", &42));
+    }
+
+    #[test]
+    fn object_cloning() {
+        let mut space = Space::new();
+
+        let src = space.create_id();
+        space.attributes_mut(src).apply(|attrs| {
+            attrs.add("a", 23);
+            attrs.add("b", 42);
+        });
+
+        let mut dst = None;
+        space.transaction(&mut |mut space| {
+            let new = space.clone_object(src);
+            assert_ne!(src, new);
+            dst = Some(new);
+            Some(space)
+        });
+
+        let dst = dst.unwrap();
+
+        assert!(space.attributes(dst).has("a", &23));
+        assert!(space.attributes(dst).has("b", &42));
+
+        assert!(space.attributes(src).has("a", &23));
+        assert!(space.attributes(src).has("b", &42));
     }
 }
