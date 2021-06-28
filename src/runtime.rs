@@ -346,6 +346,20 @@ where
                     },
                 }
             },
+            Op::CalculationCompare { binding, operation } => {
+                match perform_calculation(bindings, operation) {
+                    Some(value) => {
+                        if bindings[binding.index()] == value {
+                            Flow::NextOp
+                        } else {
+                            Flow::NextBranch
+                        }
+                    },
+                    None => {
+                        Flow::NextBranch
+                    },
+                }
+            },
             Op::BeginNot { index, sequence_len } => {
                 frames.push(Frame::NotScope {
                     index: *index,

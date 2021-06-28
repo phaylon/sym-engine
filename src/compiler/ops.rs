@@ -51,6 +51,10 @@ pub enum Op {
         binding: Binding,
         operation: Calculation,
     },
+    CalculationCompare {
+        binding: Binding,
+        operation: Calculation,
+    },
     Compare {
         comparison: Box<Comparison>,
     },

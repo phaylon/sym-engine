@@ -335,14 +335,25 @@ fn transform_op(op: &CfgOpSelect, prev: &OpState, seq: &mut Sequence) -> Option<
         CfgOpSelect::Calculation { result_binding, operation } => {
             let bindings = operation.bindings();
             prev.all_bound(bindings.iter().copied()).then(|| {
-                prev.advance(
-                    Op::Calculation {
-                        binding: *result_binding,
-                        operation: operation.clone(),
-                    },
-                    |cost| cost,
-                    once(*result_binding),
-                )
+                if prev.bound(*result_binding) {
+                    prev.advance(
+                        Op::CalculationCompare {
+                            binding: *result_binding,
+                            operation: operation.clone(),
+                        },
+                        |cost| cost,
+                        once(*result_binding),
+                    )
+                } else {
+                    prev.advance(
+                        Op::Calculation {
+                            binding: *result_binding,
+                            operation: operation.clone(),
+                        },
+                        |cost| cost - 0.2,
+                        once(*result_binding),
+                    )
+                }
             })
         }
         CfgOpSelect::Not { body, binding_mark } => {
