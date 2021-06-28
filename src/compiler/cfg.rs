@@ -490,9 +490,11 @@ fn compile_rule_select(
         ast::RuleSelect::Not(sub_selects) => {
             let mut sub_ops = Vec::new();
             let mut sub_env = env.clone();
+            let binding_mark = sub_env.binding_sequence.mark();
             compile_rule_selects(&mut sub_env, sub_selects, &mut sub_ops)?;
             ops.push(CfgOpSelect::Not {
                 body: sub_ops,
+                binding_mark,
             });
             Ok(())
         },

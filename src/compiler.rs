@@ -42,6 +42,10 @@ impl BindingSequence {
         next as usize
     }
 
+    pub fn mark(&self) -> BindingMark {
+        BindingMark(*self.next.borrow())
+    }
+
     pub fn next(&self) -> Binding {
         let mut counter = self.next.borrow_mut();
         let index = *counter;
@@ -49,6 +53,9 @@ impl BindingSequence {
         Binding(index)
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BindingMark(u16);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Binding(u16);
@@ -62,6 +69,10 @@ impl Binding {
 
     pub fn index(&self) -> usize {
         self.0 as usize
+    }
+
+    pub fn before_mark(&self, mark: BindingMark) -> bool {
+        self.0 < mark.0
     }
 }
 

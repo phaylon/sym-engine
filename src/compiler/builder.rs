@@ -5,6 +5,7 @@ use super::cfg_ops::{CfgOpSelect, CfgOpApply, OpenTupleItem};
 use super::{
     BindingSequence,
     Binding,
+    BindingMark,
     EnumOption,
     CompareValue,
     Calculation,
@@ -63,6 +64,10 @@ impl<'seq, 'bind> LinkedBindingSequence<'seq, 'bind> {
             inner,
             _bindings_lifetime: std::marker::PhantomData,
         }
+    }
+
+    fn mark(&self) -> BindingMark {
+        self.binding_sequence.mark()
     }
 }
 
@@ -349,6 +354,7 @@ impl<'seq, 'bind> SelectBuilder<'seq, 'bind> {
         F: FnOnce(&mut SelectBuilder<'_, 'bind_inner>),
     {
         let Self { binding_sequence, select } = self;
+        let binding_mark = binding_sequence.mark();
         let mut select_builder = SelectBuilder {
             binding_sequence: *binding_sequence,
             select: Vec::new(),
@@ -356,6 +362,7 @@ impl<'seq, 'bind> SelectBuilder<'seq, 'bind> {
         not_clause_cb(&mut select_builder);
         select.push(CfgOpSelect::Not {
             body: select_builder.select,
+            binding_mark,
         });
     }
 

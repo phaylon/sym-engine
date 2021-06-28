@@ -1,7 +1,15 @@
 
 use crate::{Value, Symbol};
 use crate::data::{CompareOp};
-use super::{Binding, EnumOption, Calculation, CompareValue, RemovalMode, ApplyTupleItem};
+use super::{
+    Binding,
+    BindingMark,
+    EnumOption,
+    Calculation,
+    CompareValue,
+    RemovalMode,
+    ApplyTupleItem,
+};
 
 #[derive(Debug, Clone)]
 pub enum CfgOpSelect {
@@ -36,6 +44,7 @@ pub enum CfgOpSelect {
     },
     Not {
         body: Vec<CfgOpSelect>,
+        binding_mark: BindingMark,
     },
     Compare {
         operator: CompareOp,

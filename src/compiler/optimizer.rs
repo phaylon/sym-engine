@@ -4,7 +4,7 @@ use float_ord::{FloatOrd};
 use super::cfg::{CfgRule};
 use super::cfg_ops::{CfgOpSelect, CfgOpApply, OpenTupleItem};
 use super::ops::{Op, OpApply};
-use super::{ops, EnumOption, Binding};
+use super::{ops, EnumOption, Binding, CompareValue};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct JumpIndex(usize);
@@ -345,17 +345,79 @@ fn transform_op(op: &CfgOpSelect, prev: &OpState, seq: &mut Sequence) -> Option<
                 )
             })
         }
-        CfgOpSelect::Not { body, .. } => {
-            if let Some(mut body_state) = assemble_ops(&body, prev, seq) {
-                let index = seq.next();
-                body_state.ops.push(Op::EndNot { index });
-                let sequence_len = body_state.ops.len() - prev.ops.len();
-                body_state.ops.insert(prev.ops.len(), Op::BeginNot { index, sequence_len });
-                Some(body_state)
+        CfgOpSelect::Not { body, binding_mark } => {
+            let mut required = Vec::new();
+            collect_bindings(body, &mut |binding| {
+                if binding.before_mark(*binding_mark) && !required.contains(&binding) {
+                    required.push(binding);
+                }
+            });
+            if prev.all_bound(required.into_iter()) {
+                if let Some(mut body_state) = assemble_ops(&body, prev, seq) {
+                    let index = seq.next();
+                    body_state.ops.push(Op::EndNot { index });
+                    let sequence_len = body_state.ops.len() - prev.ops.len();
+                    body_state.ops.insert(prev.ops.len(), Op::BeginNot { index, sequence_len });
+                    Some(body_state)
+                } else {
+                    None
+                }
             } else {
                 None
             }
         },
+    }
+}
+
+fn collect_bindings<F>(
+    ops: &[CfgOpSelect],
+    collect: &mut F,
+)
+where
+    F: FnMut(Binding),
+{
+    for op in ops {
+        match op {
+            CfgOpSelect::AssertObjectBinding { binding } => collect(*binding),
+            CfgOpSelect::CompareBinding { binding, .. } => collect(*binding),
+            CfgOpSelect::TupleBinding { binding, values } => {
+                collect(*binding);
+                for value in values {
+                    match value {
+                        OpenTupleItem::Binding(binding) => collect(*binding),
+                        _ => (),
+                    }
+                }
+            },
+            CfgOpSelect::EnumBinding { binding, options } => {
+                collect(*binding);
+                for option in options {
+                    match option {
+                        EnumOption::Binding(binding) => collect(*binding),
+                        _ => (),
+                    }
+                }
+            },
+            CfgOpSelect::RequireValueAttribute { binding, .. } => collect(*binding),
+            CfgOpSelect::AttributeBinding { binding, value_binding, .. } => {
+                collect(*binding);
+                collect(*value_binding);
+            },
+            CfgOpSelect::RequireAttribute { binding, .. } => collect(*binding),
+            CfgOpSelect::Not { body, .. } => collect_bindings(body, collect),
+            CfgOpSelect::Compare { left, right, .. } => {
+                if let CompareValue::Binding(binding) = left {
+                    collect(*binding);
+                }
+                if let CompareValue::Binding(binding) = right {
+                    collect(*binding);
+                }
+            },
+            CfgOpSelect::Calculation { result_binding, operation } => {
+                collect(*result_binding);
+                operation.for_each_binding(collect);
+            },
+        }
     }
 }
 
